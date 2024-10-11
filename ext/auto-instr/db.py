@@ -57,7 +57,8 @@ def create_inst_dict(file_filter, include_pseudo=False, include_pseudo_ops=[]):
 
 
     '''
-    opcodes_dir = os.path.dirname(os.path.realpath(__file__))
+    opcodes_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), '../riscv-opcodes')
+
     instr_dict = {}
 
     # file_names contains all files to be parsed in the riscv-opcodes directory
@@ -648,11 +649,15 @@ def make_yaml(instr_dict, pseudo_map):
                 yaml_content[instr_name_with_periods]['pseudoinstructions'] = []
                 pseudo_instructions = {pseudo.replace('.', '_'): instr_dict[pseudo.replace('.', '_')] for pseudo in pseudo_map[instr_name]}
                 encoding_diffs = get_yaml_encoding_diff(instr_data, pseudo_instructions)
+                print (instr_name)
 
                 for pseudo in pseudo_map[instr_name]:
+                    
                     assembly = get_yaml_assembly(pseudo.replace('.', '_'), instr_dict)
                     diff_info = encoding_diffs.get(pseudo.replace('.', '_'), {})
                     when_condition = get_yaml_assembly(instr_name, instr_dict).replace(assembly, "").replace(",", "")
+                    # if (pseudo == 'prefetch_i'):
+                    #     print (diff_info, when_condition)
 
                     if diff_info:
                         diff_str_list = []
@@ -743,9 +748,10 @@ if __name__ == "__main__":
         if i in extensions:
             extensions.remove(i)
     print(f'Extensions selected : {extensions}')
-
+    
     if '-yaml' in sys.argv[1: ]:
         instr_dict = create_inst_dict(extensions,True)  # make sure instr_dict is created
         pseudo_map = make_pseudo_list(instr_dict)
+        print(pseudo_map)
         make_yaml(instr_dict, pseudo_map)
         logging.info('instr.yaml generated successfully')
