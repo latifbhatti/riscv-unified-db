@@ -539,7 +539,7 @@ def make_yaml(instr_dict, pseudo_map):
         return result
         
     def get_yaml_encoding_diff(instr_data_original, pseudo_instructions):
-
+            
         original_vars = get_variables(instr_data_original)
         differences = {}
 
@@ -628,6 +628,7 @@ def make_yaml(instr_dict, pseudo_map):
     
         
         for instr_name, instr_data in ext_dict.items():
+            
             yaml_content = {}
             instr_name_with_periods = instr_name.replace('_', '.')
             yaml_content[instr_name_with_periods] = {
@@ -648,16 +649,17 @@ def make_yaml(instr_dict, pseudo_map):
             if instr_name in pseudo_map:
                 yaml_content[instr_name_with_periods]['pseudoinstructions'] = []
                 pseudo_instructions = {pseudo.replace('.', '_'): instr_dict[pseudo.replace('.', '_')] for pseudo in pseudo_map[instr_name]}
+                if (instr_name == 'ori'):
+                    print (instr_name)
+                    print (instr_data)
+                    print (pseudo_instructions)
                 encoding_diffs = get_yaml_encoding_diff(instr_data, pseudo_instructions)
-                print (instr_name)
 
                 for pseudo in pseudo_map[instr_name]:
                     
                     assembly = get_yaml_assembly(pseudo.replace('.', '_'), instr_dict)
                     diff_info = encoding_diffs.get(pseudo.replace('.', '_'), {})
                     when_condition = get_yaml_assembly(instr_name, instr_dict).replace(assembly, "").replace(",", "")
-                    # if (pseudo == 'prefetch_i'):
-                    #     print (diff_info, when_condition)
 
                     if diff_info:
                         diff_str_list = []
@@ -681,25 +683,6 @@ def make_yaml(instr_dict, pseudo_map):
                         'to': f"{pseudo}",
                     })
 
-
-            # Add pseudoinstruction field for origin instructions
-            if 'pseudo_ops' in instr_data:
-                pseudo_list = [pseudo.replace('_', '.') for pseudo in instr_data['pseudo_ops']]
-                if pseudo_list:
-                    yaml_content[instr_name_with_periods]['pseudoinstructions'] = []
-                    pseudo_instructions = {pseudo.replace('.', '_'): instr_dict[pseudo.replace('.', '_')] for pseudo in pseudo_list}
-                    encoding_diffs = get_yaml_encoding_diff(instr_data, pseudo_instructions)
-                    for pseudo in pseudo_list:
-                        assembly = get_yaml_assembly(pseudo.replace('.', '_'), instr_dict)
-                        diff_info = encoding_diffs.get(pseudo.replace('.', '_'), {})
-                        when_condition = get_yaml_assembly(instr_name, instr_dict).replace(assembly,"").replace(",","")
-                        if diff_info:
-                            diff_str = ", ".join([f"{field}=={details['pseudo_value']}" for field, details in diff_info.items()])
-                            when_condition = f"{diff_str}"
-                        yaml_content[instr_name_with_periods]['pseudoinstructions'].append({
-                            'when': when_condition,
-                            'to': f"{pseudo}",
-                        })
             
             #  Add origininstruction field for pseudo instructions
             if instr_data.get('is_pseudo', False):
@@ -752,6 +735,5 @@ if __name__ == "__main__":
     if '-yaml' in sys.argv[1: ]:
         instr_dict = create_inst_dict(extensions,True)  # make sure instr_dict is created
         pseudo_map = make_pseudo_list(instr_dict)
-        print(pseudo_map)
         make_yaml(instr_dict, pseudo_map)
         logging.info('instr.yaml generated successfully')
