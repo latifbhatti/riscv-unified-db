@@ -558,10 +558,6 @@ def make_yaml(instr_dict, pseudo_map):
                     field_differences[field] = {
                         'pseudo_value': pseudo_vars[field]['match']
                     }
-                elif original_vars[field]['match'] != pseudo_vars[field]['match']:
-                    field_differences[field] = {
-                        'pseudo_value': pseudo_vars[field]['match']
-                    }
 
             if field_differences:
                 differences[pseudo_name] = field_differences
@@ -646,16 +642,13 @@ def make_yaml(instr_dict, pseudo_map):
                 },
             }
 
-            if instr_name in pseudo_map:
+            if instr_name in pseudo_map and not any('_rv' in pseudo for pseudo in pseudo_map[instr_name]):
                 yaml_content[instr_name_with_periods]['pseudoinstructions'] = []
                 pseudo_instructions = {pseudo.replace('.', '_'): instr_dict[pseudo.replace('.', '_')] for pseudo in pseudo_map[instr_name]}
-                if (instr_name == 'ori'):
-                    print (instr_name)
-                    print (instr_data)
-                    print (pseudo_instructions)
                 encoding_diffs = get_yaml_encoding_diff(instr_data, pseudo_instructions)
 
                 for pseudo in pseudo_map[instr_name]:
+                    
                     
                     assembly = get_yaml_assembly(pseudo.replace('.', '_'), instr_dict)
                     diff_info = encoding_diffs.get(pseudo.replace('.', '_'), {})
@@ -665,7 +658,6 @@ def make_yaml(instr_dict, pseudo_map):
                         diff_str_list = []
                         for field, details in diff_info.items():
                             pseudo_value = details['pseudo_value']
-
                             # Check if the pseudo_value is a valid binary string (i.e., contains only '0' or '1')
                             if all(c in '01' for c in pseudo_value):
                                 # Convert valid binary to hex and apply the new format
