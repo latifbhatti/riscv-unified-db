@@ -549,15 +549,19 @@ def make_yaml(instr_dict, pseudo_map):
 
             # Find fields that are different or unique to each instruction
             all_fields = set(original_vars.keys()) | set(pseudo_vars.keys())
+            print(pseudo_vars)
+            print (original_vars) 
             for field in all_fields:
                 if field not in pseudo_vars:
                     field_differences[field] = {
                         'pseudo_value': pseudo_data['encoding'][31-original_vars[field]['start_bit']:32-original_vars[field]['end_bit']]
                     }
+                    print (field ,pseudo_data['encoding'][31-original_vars[field]['start_bit']:32-original_vars[field]['end_bit']])
                 elif field not in original_vars:
                     field_differences[field] = {
                         'pseudo_value': pseudo_vars[field]['match']
                     }
+                    print(field ,pseudo_vars[field]['match'])
 
             if field_differences:
                 differences[pseudo_name] = field_differences
@@ -645,6 +649,7 @@ def make_yaml(instr_dict, pseudo_map):
             if instr_name in pseudo_map and not any('_rv' in pseudo for pseudo in pseudo_map[instr_name]):
                 yaml_content[instr_name_with_periods]['pseudoinstructions'] = []
                 pseudo_instructions = {pseudo.replace('.', '_'): instr_dict[pseudo.replace('.', '_')] for pseudo in pseudo_map[instr_name]}
+                print (instr_name)
                 encoding_diffs = get_yaml_encoding_diff(instr_data, pseudo_instructions)
 
                 for pseudo in pseudo_map[instr_name]:
