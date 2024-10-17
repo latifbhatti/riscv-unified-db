@@ -589,8 +589,11 @@ def make_yaml(instr_dict, pseudo_map):
         if has_zb_extension:
             defined_by.add('B')
 
-        return f"[{', '.join(sorted(defined_by))}]"
-
+        sorted_defined_by = sorted(defined_by)
+        if len(sorted_defined_by) == 1:
+            return sorted_defined_by[0]
+        else:
+            return f"[{', '.join(sorted_defined_by)}]"
 
     def get_yaml_base(instr_data):
         for ext in instr_data['extension']:
@@ -639,11 +642,12 @@ def make_yaml(instr_dict, pseudo_map):
                 'assembly': get_yaml_assembly(instr_name, instr_dict),
                 'encoding': make_yaml_encoding(instr_name, instr_data),
                 'access': {
-                            's': 'TODO',
-                            'u': 'TODO',
-                            'vs': 'TODO',
-                            'vu': 'TODO'
+                            's': 'always',
+                            'u': 'always',
+                            'vs': 'always',
+                            'vu': 'always'
                 },
+                'data_independent_timing' : 'true'
             }
 
             if instr_name in pseudo_map and not any('_rv' in pseudo for pseudo in pseudo_map[instr_name]):
@@ -708,6 +712,7 @@ def make_yaml(instr_dict, pseudo_map):
             yaml_string = re.sub(r'description: (.+)', lambda m: f'description: |\n      {m.group(1)}', yaml_string)
             yaml_string = re.sub(r'operation: (.+)', lambda m: f'operation(): |\n      {""}', yaml_string)
             yaml_string = yaml_string.replace ('"',"")
+            yaml_string = yaml_string.replace ("'true'","true")
             yaml_string = re.sub(r"not: '(\d+)", r"not: \1", yaml_string)
 
 
