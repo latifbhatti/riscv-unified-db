@@ -193,6 +193,7 @@ def create_inst_dict(file_filter, include_pseudo=False, include_pseudo_ops=[]):
                 # update the final dict with the instruction
                 if name not in instr_dict:
                     single_dict['original_instruction'] = orig_inst
+                    single_dict['original_instruction'] = single_dict['original_instruction'].replace('.','_')
                     instr_dict[name] = single_dict
                     logging.debug(f'        including pseudo_ops:{name}')
                 else:
@@ -344,7 +345,8 @@ def make_pseudo_list(inst_dict):
 
     # Iterate through the instruction dictionary
     for original_instr_name, original_instr_data in inst_dict.items():
-        
+        if(original_instr_name == 'fabs_s'):
+            print (original_instr_data)
         original_instruction = original_instr_name
         
         # Iterate again to compare with other instructions
@@ -549,20 +551,15 @@ def make_yaml(instr_dict, pseudo_map):
 
             # Find fields that are different or unique to each instruction
             all_fields = set(original_vars.keys()) | set(pseudo_vars.keys())
-            print(pseudo_vars)
-            print (original_vars) 
             for field in all_fields:
                 if field not in pseudo_vars:
                     field_differences[field] = {
                         'pseudo_value': pseudo_data['encoding'][31-original_vars[field]['start_bit']:32-original_vars[field]['end_bit']]
                     }
-                    print (field ,pseudo_data['encoding'][31-original_vars[field]['start_bit']:32-original_vars[field]['end_bit']])
                 elif field not in original_vars:
                     field_differences[field] = {
                         'pseudo_value': pseudo_vars[field]['match']
                     }
-                    print(field ,pseudo_vars[field]['match'])
-
             if field_differences:
                 differences[pseudo_name] = field_differences
 
@@ -649,11 +646,12 @@ def make_yaml(instr_dict, pseudo_map):
                 },
                 'data_independent_timing' : 'true'
             }
-
             if instr_name in pseudo_map and not any('_rv' in pseudo for pseudo in pseudo_map[instr_name]):
+                print(instr_name)
+                print(pseudo_map[instr_name])
+
                 yaml_content[instr_name_with_periods]['pseudoinstructions'] = []
                 pseudo_instructions = {pseudo.replace('.', '_'): instr_dict[pseudo.replace('.', '_')] for pseudo in pseudo_map[instr_name]}
-                print (instr_name)
                 encoding_diffs = get_yaml_encoding_diff(instr_data, pseudo_instructions)
 
                 for pseudo in pseudo_map[instr_name]:
@@ -681,7 +679,7 @@ def make_yaml(instr_dict, pseudo_map):
 
                     yaml_content[instr_name_with_periods]['pseudoinstructions'].append({
                         'when': when_condition,
-                        'to': f"{pseudo}",
+                        'to': f"{pseudo.replace('_','.')}",
                     })
 
             
