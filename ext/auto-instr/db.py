@@ -607,8 +607,9 @@ def make_yaml(instr_dict, pseudo_map):
         if len(sorted_defined_by) == 1:
             return sorted_defined_by[0]
         else:
-            return f"[{', '.join(sorted_defined_by)}]"
-
+            extensions_string = f"[{', '.join(sorted_defined_by)}]"
+            return {'anyOf': extensions_string}        
+            
     def get_yaml_base(instr_data):
         for ext in instr_data['extension']:
             if ext.startswith('rv32'):
