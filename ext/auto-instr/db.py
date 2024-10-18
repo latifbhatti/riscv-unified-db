@@ -729,10 +729,11 @@ def make_yaml(instr_dict, pseudo_map):
 
 
             # Write to file
-            filename = f'{instr_name_with_periods}.yaml'
-            filepath = os.path.join(ext_dir, filename)
-            with open(filepath, 'w') as outfile:
-                outfile.write(yaml_string)
+            if instr_name_with_periods in yaml_content and yaml_content[instr_name_with_periods]:
+                filename = f'{instr_name_with_periods}.yaml'
+                filepath = os.path.join(ext_dir, filename)
+                with open(filepath, 'w') as outfile:
+                    outfile.write(yaml_string)
     
     print("Summary of all extensions saved as yaml_output/extensions_summary.yaml")
 
