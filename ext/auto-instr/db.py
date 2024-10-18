@@ -285,6 +285,25 @@ def create_inst_dict(file_filter, include_pseudo=False, include_pseudo_ops=[]):
                 instr_dict[name] = single_dict
     return instr_dict
 
+def pop_parent_with_origin_instruction(yaml_content, instr_dict):
+    keys_to_pop = []
+    for key, value in instr_dict.items():
+        if isinstance(value, dict) and 'original_instruction' in value:
+            keys_to_pop.append(key)
+    
+    for key in keys_to_pop:
+        key_with_dots = key.replace('_', '.')
+        key_with_underscores = key.replace('.', '_')
+        
+        if key in yaml_content:
+            yaml_content.pop(key)
+        elif key_with_dots in yaml_content:
+            yaml_content.pop(key_with_dots)
+        elif key_with_underscores in yaml_content:
+            yaml_content.pop(key_with_underscores)
+    
+    return yaml_content
+
 def combine_imm_fields(imm_fields):
     '''
     Combine multiple immediate fields into a single representation.
@@ -345,8 +364,6 @@ def make_pseudo_list(inst_dict):
 
     # Iterate through the instruction dictionary
     for original_instr_name, original_instr_data in inst_dict.items():
-        if(original_instr_name == 'fabs_s'):
-            print (original_instr_data)
         original_instruction = original_instr_name
         
         # Iterate again to compare with other instructions
@@ -647,9 +664,6 @@ def make_yaml(instr_dict, pseudo_map):
                 'data_independent_timing' : 'true'
             }
             if instr_name in pseudo_map and not any('_rv' in pseudo for pseudo in pseudo_map[instr_name]):
-                print(instr_name)
-                print(pseudo_map[instr_name])
-
                 yaml_content[instr_name_with_periods]['pseudoinstructions'] = []
                 pseudo_instructions = {pseudo.replace('.', '_'): instr_dict[pseudo.replace('.', '_')] for pseudo in pseudo_map[instr_name]}
                 encoding_diffs = get_yaml_encoding_diff(instr_data, pseudo_instructions)
@@ -702,7 +716,7 @@ def make_yaml(instr_dict, pseudo_map):
             if yaml_content[instr_name_with_periods]['base'] is None or (instr_name in rv32_instructions):
                 yaml_content[instr_name_with_periods].pop('base')
 
-
+            yaml_content = pop_parent_with_origin_instruction (yaml_content, instr_dict)
         
             yaml_string = "# yaml-language-server: $schema=../../../schemas/inst_schema.json\n\n"
             yaml_string += yaml.dump(yaml_content, default_flow_style=False, sort_keys=False)
