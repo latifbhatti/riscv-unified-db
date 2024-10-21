@@ -662,7 +662,7 @@ def make_yaml(instr_dict, pseudo_map):
                             'vs': 'always',
                             'vu': 'always'
                 },
-                'data_independent_timing' : 'true'
+                'data_independent_timing' : 'false'
             }
             if instr_name in pseudo_map and not any('_rv' in pseudo for pseudo in pseudo_map[instr_name]):
                 yaml_content[instr_name_with_periods]['pseudoinstructions'] = []
@@ -725,7 +725,7 @@ def make_yaml(instr_dict, pseudo_map):
             yaml_string = re.sub(r'description: (.+)', lambda m: f'description: |\n      {m.group(1)}', yaml_string)
             yaml_string = re.sub(r'operation: (.+)', lambda m: f'operation(): |\n      {""}', yaml_string)
             yaml_string = yaml_string.replace ('"',"")
-            yaml_string = yaml_string.replace ("'true'","true")
+            yaml_string = yaml_string.replace ("'false'","false")
             yaml_string = re.sub(r"not: '(\d+)", r"not: \1", yaml_string)
 
 
