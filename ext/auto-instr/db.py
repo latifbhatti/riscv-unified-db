@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
 import sys
 import os
+import glob
 from db_const import *
 from itertools import groupby
 from operator import itemgetter
+import json
+import yaml
+
 
 # Save the current working directory
 original_cwd = os.getcwd()
@@ -17,6 +21,7 @@ sys.path.append(module_path)
 
 # Now import the parse.py module, which will also import constants.py
 from parse import *
+from shared_utils import *
 
 # After importing, change back to the original working directory
 os.chdir(original_cwd)
@@ -57,7 +62,7 @@ def create_inst_dict(file_filter, include_pseudo=False, include_pseudo_ops=[]):
 
 
     '''
-    opcodes_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), '../riscv-opcodes')
+    opcodes_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), '../riscv-opcodes/extensions')
 
     instr_dict = {}
 
@@ -285,6 +290,48 @@ def create_inst_dict(file_filter, include_pseudo=False, include_pseudo_ops=[]):
                 instr_dict[name] = single_dict
     return instr_dict
 
+def load_json_instructions(json_file_path):
+    with open(json_file_path, 'r') as json_file:
+        json_instr_dict = json.load(json_file)
+    return json_instr_dict
+
+def merge_instruction_dicts(dict1, dict2):
+    merged_dict = dict1.copy()  # Start with dict1's keys and values
+    for key, value in dict2.items():
+        if key in merged_dict:
+            # Handle duplicate keys if necessary
+            pass  # For now, we'll ignore duplicates; you can define your policy here
+        else:
+            merged_dict[key] = value
+    return merged_dict
+
+def report_missing_instructions(missing_in_dict1, missing_in_dict2, file_path):
+    with open(file_path, 'w') as file:
+        if missing_in_dict1:
+            file.write("Instructions missing in the first dictionary:\n")
+            for instr in missing_in_dict1:
+                file.write(f"  {instr}\n")
+        else:
+            file.write("No instructions missing in the first dictionary.\n")
+
+        if missing_in_dict2:
+            file.write("Instructions missing in the second dictionary:\n")
+            for instr in missing_in_dict2:
+                file.write(f"  {instr}\n")
+        else:
+            file.write("No instructions missing in the second dictionary.\n")
+
+
+def compare_instruction_sets(dict1, dict2):
+    set1 = set(dict1.keys())
+    set2 = set(dict2.keys())
+
+    missing_in_dict1 = set2 - set1
+    missing_in_dict2 = set1 - set2
+
+    return missing_in_dict1, missing_in_dict2
+
+
 def pop_parent_with_origin_instruction(yaml_content, instr_dict):
     keys_to_pop = []
     for key, value in instr_dict.items():
@@ -374,6 +421,9 @@ def make_pseudo_list(inst_dict):
                     pseudo_map[original_instruction] = []
                 pseudo_map[original_instruction].append(instr_name)
     return pseudo_map
+
+
+
 
 def make_yaml(instr_dict, pseudo_map):
     def get_yaml_long_name(instr_name):
@@ -639,39 +689,82 @@ def make_yaml(instr_dict, pseudo_map):
     base_dir = 'yaml_output'
     os.makedirs(base_dir, exist_ok=True)
 
+    def create_pseudo_yaml(pseudo_name, original_name, instr_data, instr_dict, ext_dir):
+        inner_content = {
+            '$schema': 'inst_schema.json#',
+            'kind': 'pseudoinstruction',
+            'name': pseudo_name.replace('_', '.'),
+            'long_name': get_yaml_long_name(pseudo_name),
+            'description': get_yaml_description(pseudo_name),
+            'definedBy': get_yaml_definedby(instr_data),
+            'assembly': get_yaml_assembly(pseudo_name, instr_dict),
+            'origin_instruction': original_name.replace('_', '.'),
+            'encoding': make_yaml_encoding(pseudo_name, instr_data),
+            'operation': None
+        }
+
+        yaml_string = "# yaml-language-server: $schema=../../../schemas/inst_schema.json\n\n"
+        yaml_string += yaml.dump(inner_content, default_flow_style=False, sort_keys=False)
+        yaml_string = yaml_string.replace("'[", "[").replace("]'","]").replace("'-","-")
+        yaml_string = re.sub(r'description: (.+)', lambda m: f'description: |\n      {m.group(1)}', yaml_string)
+        yaml_string = re.sub(r'operation: (.+)', lambda m: f'operation(): |\n      {""}', yaml_string)
+        yaml_string = yaml_string.replace('"',"")
+
+        # Create pseudo directory if it doesn't exist
+        pseudo_dir = os.path.join(ext_dir, 'pseudo')
+        os.makedirs(pseudo_dir, exist_ok=True)
+
+        # Write to file
+        filename = f'{pseudo_name.replace("_", ".")}.yaml'
+        filepath = os.path.join(pseudo_dir, filename)
+        with open(filepath, 'w') as outfile:
+            outfile.write(yaml_string)
+
     # Generate and save YAML for each extension
     for ext, ext_dict in extensions.items():
         ext_dir = os.path.join(base_dir, ext)
         os.makedirs(ext_dir, exist_ok=True)
     
-        
         for instr_name, instr_data in ext_dict.items():
-            
-            yaml_content = {}
-            instr_name_with_periods = instr_name.replace('_', '.')
-            yaml_content[instr_name_with_periods] = {
+            # Create the new nested structure
+            inner_content = {
+                '$schema': 'inst_schema.json#',
+                'kind': 'instruction',
+                'name': instr_name.replace('_', '.'),
                 'long_name': get_yaml_long_name(instr_name),
                 'description': get_yaml_description(instr_name),
                 'definedBy': get_yaml_definedby(instr_data),
-                'base': get_yaml_base(instr_data),
                 'assembly': get_yaml_assembly(instr_name, instr_dict),
                 'encoding': make_yaml_encoding(instr_name, instr_data),
                 'access': {
-                            's': 'always',
-                            'u': 'always',
-                            'vs': 'always',
-                            'vu': 'always'
+                    's': 'always',
+                    'u': 'always',
+                    'vs': 'always',
+                    'vu': 'always'
                 },
-                'data_independent_timing' : 'false'
+                'data_independent_timing': 'false'
             }
+
+            # Add base if it exists
+            base = get_yaml_base(instr_data)
+            if base is not None and not (instr_name in rv32_instructions):
+                inner_content['base'] = base
+
             if instr_name in pseudo_map and not any('_rv' in pseudo for pseudo in pseudo_map[instr_name]):
-                yaml_content[instr_name_with_periods]['pseudoinstructions'] = []
-                pseudo_instructions = {pseudo.replace('.', '_'): instr_dict[pseudo.replace('.', '_')] for pseudo in pseudo_map[instr_name]}
+                for pseudo in pseudo_map[instr_name]:
+                    pseudo_data = instr_dict[pseudo.replace('.', '_')]
+                    create_pseudo_yaml(pseudo, instr_name, pseudo_data, instr_dict, ext_dir)
+
+            if 'original_instruction' in instr_data and not instr_name.endswith('_rv32'):
+                continue
+
+            if instr_name in pseudo_map and not any('_rv' in pseudo for pseudo in pseudo_map[instr_name]):
+                inner_content['pseudoinstructions'] = []
+                pseudo_instructions = {pseudo.replace('.', '_'): instr_dict[pseudo.replace('.', '_')] 
+                                    for pseudo in pseudo_map[instr_name]}
                 encoding_diffs = get_yaml_encoding_diff(instr_data, pseudo_instructions)
 
                 for pseudo in pseudo_map[instr_name]:
-                    
-                    
                     assembly = get_yaml_assembly(pseudo.replace('.', '_'), instr_dict)
                     diff_info = encoding_diffs.get(pseudo.replace('.', '_'), {})
                     when_condition = get_yaml_assembly(instr_name, instr_dict).replace(assembly, "").replace(",", "")
@@ -680,62 +773,43 @@ def make_yaml(instr_dict, pseudo_map):
                         diff_str_list = []
                         for field, details in diff_info.items():
                             pseudo_value = details['pseudo_value']
-                            # Check if the pseudo_value is a valid binary string (i.e., contains only '0' or '1')
                             if all(c in '01' for c in pseudo_value):
-                                # Convert valid binary to hex and apply the new format
                                 diff_str_list.append(f"({field} == {hex(int(pseudo_value, 2))})")
                             else:
-                                # Keep original pseudo_value if not binary and apply the new format
                                 diff_str_list.append(f"({field} == {pseudo_value})")
-                        
-                        # Join conditions with '&&' instead of commas
-                        diff_str = " && ".join(diff_str_list)
-                        when_condition = f"{diff_str}"
+                        when_condition = " && ".join(diff_str_list)
 
-                    yaml_content[instr_name_with_periods]['pseudoinstructions'].append({
+                    inner_content['pseudoinstructions'].append({
                         'when': when_condition,
                         'to': f"{pseudo.replace('_','.')}",
                     })
 
-            
-            #  Add origininstruction field for pseudo instructions
-            if instr_data.get('is_pseudo', False):
-                yaml_content[instr_name_with_periods]['origininstruction'] = instr_data['orig_inst'].replace('_', '.')
-
-            # Add operation field last
-            yaml_content[instr_name_with_periods]['operation'] = None
-
             # Handle encoding for RV32 and RV64 versions
             if instr_name in rv32_instructions:
-                yaml_content[instr_name_with_periods]['encoding'] = {
+                inner_content['encoding'] = {
                     'RV32': make_yaml_encoding(rv32_instructions[instr_name], instr_dict[rv32_instructions[instr_name]]),
                     'RV64': make_yaml_encoding(instr_name, instr_data)
                 }
-            else:
-                yaml_content[instr_name_with_periods]['encoding'] = make_yaml_encoding(instr_name, instr_data)
 
-            if yaml_content[instr_name_with_periods]['base'] is None or (instr_name in rv32_instructions):
-                yaml_content[instr_name_with_periods].pop('base')
+            # Add operation field last
+            inner_content['operation'] = None
 
-            yaml_content = pop_parent_with_origin_instruction (yaml_content, instr_dict)
-        
+            # Generate YAML string
             yaml_string = "# yaml-language-server: $schema=../../../schemas/inst_schema.json\n\n"
-            yaml_string += yaml.dump(yaml_content, default_flow_style=False, sort_keys=False)
+            yaml_string += yaml.dump(inner_content, default_flow_style=False, sort_keys=False)
             yaml_string = yaml_string.replace("'[", "[").replace("]'","]").replace("'-","-").replace("0'","0").replace("1'","1").replace("-'","-")
             yaml_string = re.sub(r'description: (.+)', lambda m: f'description: |\n      {m.group(1)}', yaml_string)
             yaml_string = re.sub(r'operation: (.+)', lambda m: f'operation(): |\n      {""}', yaml_string)
-            yaml_string = yaml_string.replace ('"',"")
-            yaml_string = yaml_string.replace ("'false'","false")
+            yaml_string = yaml_string.replace('"',"")
+            yaml_string = yaml_string.replace("'false'","false")
             yaml_string = re.sub(r"not: '(\d+)", r"not: \1", yaml_string)
 
-
             # Write to file
-            if instr_name_with_periods in yaml_content and yaml_content[instr_name_with_periods]:
-                filename = f'{instr_name_with_periods}.yaml'
-                filepath = os.path.join(ext_dir, filename)
-                with open(filepath, 'w') as outfile:
-                    outfile.write(yaml_string)
-    
+            filename = f'{instr_name.replace("_", ".")}.yaml'
+            filepath = os.path.join(ext_dir, filename)
+            with open(filepath, 'w') as outfile:
+                outfile.write(yaml_string)
+
     print("Summary of all extensions saved as yaml_output/extensions_summary.yaml")
 
 
@@ -748,8 +822,19 @@ if __name__ == "__main__":
             extensions.remove(i)
     print(f'Extensions selected : {extensions}')
     
-    if '-yaml' in sys.argv[1: ]:
-        instr_dict = create_inst_dict(extensions,True)  # make sure instr_dict is created
-        pseudo_map = make_pseudo_list(instr_dict)
-        make_yaml(instr_dict, pseudo_map)
-        logging.info('instr.yaml generated successfully')
+    instr_dict = create_inst_dict(extensions, include_pseudo=True)
+    
+    # Load JSON instructions
+    json_file_path = '../riscv-opcodes/instr_dict.json'  # Path to your JSON file
+    json_instr_dict = load_json_instructions(json_file_path)
+    
+    # Compare instruction sets
+    missing_in_instr_dict, missing_in_json = compare_instruction_sets(json_instr_dict, instr_dict)
+    report_missing_instructions(missing_in_instr_dict, missing_in_json, 'missing_instructions.txt')
+    
+    # Merge instruction dictionaries
+    merged_instr_dict = merge_instruction_dicts(instr_dict, json_instr_dict)
+    
+    pseudo_map = make_pseudo_list(merged_instr_dict)
+    make_yaml(merged_instr_dict, pseudo_map)
+    logging.info('YAML files generated successfully')
