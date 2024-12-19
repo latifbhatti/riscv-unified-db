@@ -527,25 +527,41 @@ def make_yaml(instr_dict, pseudo_map):
         variables = []
         imm_locations = []
         for field_name in var_fields:
+            # Handle field assignments like 'rs2=rs1'
+            if '=' in field_name:
+                field_name, assigned_value = field_name.split('=')
+                # You may need to handle the assigned_value based on your requirements
+                # For example, you might want to enforce that field_name equals assigned_value
+
             if field_name in variable_mapping:
                 mapped_name = variable_mapping[field_name]
-                if '[' in mapped_name and ']' in mapped_name and (mapped_name.startswith('imm') or mapped_name.startswith('uimm') or mapped_name.startswith('nzimm')):
+                if ('[' in mapped_name and ']' in mapped_name and 
+                    (mapped_name.startswith('imm') or mapped_name.startswith('uimm') or mapped_name.startswith('nzimm'))):
                     # This is an immediate field
                     imm_locations.extend(parse_imm_location(field_name, mapped_name))
                 else:
                     # This is a regular field
-                    start_bit, end_bit = arg_lut[field_name]
-                    variables.append({
-                        'name': mapped_name,
-                        'location': f'{start_bit}-{end_bit}'
-                    })
+                    start_bit, end_bit = arg_lut.get(field_name, (None, None))
+                    if start_bit is not None and end_bit is not None:
+                        variables.append({
+                            'name': mapped_name,
+                            'location': f'{start_bit}-{end_bit}'
+                        })
+                    else:
+                        # Handle missing field_name in arg_lut
+                        continue  # Or log an error if necessary
             else:
                 # If not in variable_mapping, use the original field name and bit range
-                start_bit, end_bit = arg_lut[field_name]
-                variables.append({
-                    'name': field_name,
-                    'location': f'{start_bit}-{end_bit}'
-                })
+                start_bit, end_bit = arg_lut.get(field_name, (None, None))
+                if start_bit is not None and end_bit is not None:
+                    variables.append({
+                        'name': field_name,
+                        'location': f'{start_bit}-{end_bit}'
+                    })
+                else:
+                    # Handle missing field_name in arg_lut
+                    continue  # Or log an error if necessary
+
         last_x = 0
         # Add merged immediate field if there are any immediate parts
         if imm_locations:
@@ -572,38 +588,37 @@ def make_yaml(instr_dict, pseudo_map):
                 merged_parts.append(tuple(current_range))
             
             # Convert merged parts to string representation
-            imm_location = '|'.join([f'{start}' if start == end else f'{start}-{end}' 
-                                    for start, end, _, _ in merged_parts])
-            if(last_x != 0):
-                variables.append({
-                    'name': 'imm',
-                    'location': imm_location,
-                    'left_shift': last_x
-
-                })
-            else:
-                variables.append({
-                    'name': 'imm',
-                    'location': imm_location
-                })
-                   
+            imm_location = '|'.join([
+                f'{start}' if start == end else f'{start}-{end}' 
+                for start, end, _, _ in merged_parts
+            ])
+            imm_variable = {
+                'name': 'imm',
+                'location': imm_location
+            }
+            if last_x != 0:
+                imm_variable['left_shift'] = last_x
+            variables.append(imm_variable)
 
         # Sort variables in descending order based on the start of the bit range
-        variables.sort(key=lambda x: int(x['location'].split('-')[0].split('|')[0]), reverse=True)
+        variables.sort(
+            key=lambda x: int(x['location'].split('-')[0].split('|')[0]), 
+            reverse=True
+        )
 
         if "-" not in match:
-            match = '"'+ match + '"'
+            match = '"' + match + '"'
+
+        # Handle '!=' in variable names
+        for variable in variables:
+            if '!=' in variable['name']:
+                variable['not'] = variable['name'].split('!=')[1]
+                variable['name'] = variable['name'].split('!=')[0]
 
         result = {
             'match': match,
             'variables': variables
         }
-
-
-        for variable in result['variables']:
-            if '!=' in variable['name']:
-                variable['not'] = variable['name'][-1]
-                variable['name'] = variable['name'].replace('!=', '')[:-1]
 
         return result
         
