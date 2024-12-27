@@ -260,7 +260,7 @@
       "type": "object",
       "properties": {
         "schema": {
-          "$ref": "/riscv-software-src/riscv-unified-db/refs/heads/dev/kbroch/json-schema-ids/schemas/json-schema-draft-07.json#"
+          "$ref": "http://json-schema.org/draft-07/schema#"
         },
         "when": {
           "$ref": "#/$defs/when_condition"
