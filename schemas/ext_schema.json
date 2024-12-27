@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-
+  "$id": "https://raw.githubusercontent.com/riscv-software-src/riscv-unified-db/refs/heads/dev/kbroch/json-schema-ids/schemas/ext_schema.json",
   "$defs": {
     "param_data": {
       "type": "object",
@@ -13,22 +13,22 @@
         "also_defined_in": {
           "oneOf": [
             {
-              "$ref": "schema_defs.json#/$defs/extension_name"
+              "$ref": "/schemas/schema_defs.json#/$defs/extension_name"
             },
             {
               "type": "array",
               "items": {
-                "$ref": "schema_defs.json#/$defs/extension_name"
+                "$ref": "/schemas/schema_defs.json#/$defs/extension_name"
               }
             }
           ],
           "description": "When a parameter is defined by multiple extensions, declare the other extensions here. The parameter *must* mean the same thing in all extensions."
         },
         "schema": {
-          "$ref": "json-schema-draft-07.json#"
+          "$ref": "/schemas/json-schema-draft-07.json#"
         },
         "when": {
-          "$ref": "schema_defs.json#/$defs/when_condition"
+          "$ref": "/schemas/schema_defs.json#/$defs/when_condition"
         },
         "extra_validation": {
           "description": "Ruby code to perform extra validation, when it is not easily expressed with JSON Schema (_e.g._, because it depends on the value of another parameter)",
@@ -59,7 +59,7 @@
           "const": "extension",
           "description": "Object type"
         },
-        "name": { "$ref": "schema_defs.json#/$defs/extension_name" },
+        "name": { "$ref": "/schemas/schema_defs.json#/$defs/extension_name" },
         "long_name": {
           "type": "string",
           "description": "One line description for the extension"
@@ -74,20 +74,22 @@
         },
         "company": {
           "description": "The company that developed this extension",
-          "$ref": "schema_defs.json#/$defs/company"
+          "$ref": "/schemas/schema_defs.json#/$defs/company"
         },
         "doc_license": {
-          "$ref": "schema_defs.json#/$defs/license"
+          "$ref": "/schemas/schema_defs.json#/$defs/license"
         },
         "type": { "enum": ["unprivileged", "privileged"] },
         "conflicts": {
           "description": "Extension(s) that conflict with this extension; both cannot be implemented at the same time",
           "oneOf": [
-            { "$ref": "schema_defs.json#/$defs/extension_requirement" },
+            {
+              "$ref": "/schemas/schema_defs.json#/$defs/extension_requirement"
+            },
             {
               "type": "array",
               "items": {
-                "$ref": "schema_defs.json#/$defs/extension_requirement"
+                "$ref": "/schemas/schema_defs.json#/$defs/extension_requirement"
               }
             }
           ]
@@ -109,10 +111,10 @@
             },
             "properties": {
               "version": {
-                "$ref": "schema_defs.json#/$defs/extension_version"
+                "$ref": "/schemas/schema_defs.json#/$defs/extension_version"
               },
               "state": {
-                "$ref": "schema_defs.json#/$defs/spec_state",
+                "$ref": "/schemas/schema_defs.json#/$defs/spec_state",
                 "description": "Current state of this version"
               },
               "repositories": {
@@ -166,19 +168,19 @@
                 "description": "Extension(s) implied by this extension (i.e., any subextensions)",
                 "oneOf": [
                   {
-                    "$ref": "schema_defs.json#/$defs/extension_name_and_version"
+                    "$ref": "/schemas/schema_defs.json#/$defs/extension_name_and_version"
                   },
                   {
                     "type": "array",
                     "items": {
-                      "$ref": "schema_defs.json#/$defs/extension_name_and_version"
+                      "$ref": "/schemas/schema_defs.json#/$defs/extension_name_and_version"
                     }
                   }
                 ]
               },
               "requires": {
                 "description": "Extension(s) required by this extension",
-                "$ref": "schema_defs.json#/$defs/requires_entry"
+                "$ref": "/schemas/schema_defs.json#/$defs/requires_entry"
               },
               "contributors": {
                 "description": "List of contributors to this version of the extension",
@@ -209,7 +211,7 @@
                     "type": "object",
                     "properties": {
                       "schema": {
-                        "$ref": "json-schema-draft-07.json#",
+                        "$ref": "/schemas/json-schema-draft-07.json#",
                         "description": "Extra schema constraints for the parameter"
                       },
                       "extra_validation": {
@@ -248,7 +250,7 @@
                 "type": "object",
                 "properties": {
                   "version": {
-                    "$ref": "schema_defs.json#/$defs/version_requirements"
+                    "$ref": "/schemas/schema_defs.json#/$defs/version_requirements"
                   }
                 },
                 "additionalProperties": false
