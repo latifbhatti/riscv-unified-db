@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://raw.githubusercontent.com/riscv-software-src/riscv-unified-db/refs/heads/dev/kbroch/json-schema-ids/schemas/profile_class_schema.json",
+  "$id": "https://raw.githubusercontent.com/riscv-software-src/riscv-unified-db/refs/heads/dev/kbroch/json-schema-ids/riscv-software-src/riscv-unified-db/refs/heads/dev/kbroch/json-schema-ids/schemas/profile_class_schema.json",
   "type": "object",
   "required": ["$schema", "kind", "name"],
   "properties": {
@@ -33,10 +33,10 @@
       "description": "Commentary on how profile releases in the class are named"
     },
     "company": {
-      "$ref": "/schemas/schema_defs.json#/$defs/company"
+      "$ref": "/riscv-software-src/riscv-unified-db/refs/heads/dev/kbroch/json-schema-ids/schemas/schema_defs.json#/$defs/company"
     },
     "doc_license": {
-      "$ref": "/schemas/schema_defs.json#/$defs/license"
+      "$ref": "/riscv-software-src/riscv-unified-db/refs/heads/dev/kbroch/json-schema-ids/schemas/schema_defs.json#/$defs/license"
     },
     "$source": {
       "type": "string",

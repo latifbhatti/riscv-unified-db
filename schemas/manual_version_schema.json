@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://raw.githubusercontent.com/riscv-software-src/riscv-unified-db/refs/heads/dev/kbroch/json-schema-ids/schemas/manual_version_schema.json",
+  "$id": "https://raw.githubusercontent.com/riscv-software-src/riscv-unified-db/refs/heads/dev/kbroch/json-schema-ids/riscv-software-src/riscv-unified-db/refs/heads/dev/kbroch/json-schema-ids/schemas/manual_version_schema.json",
   "$defs": {
     "volume": {
       "type": "object",
@@ -24,13 +24,13 @@
         "authors": {
           "type": "array",
           "items": {
-            "$ref": "/schemas/schema_defs.json#/$defs/author"
+            "$ref": "/riscv-software-src/riscv-unified-db/refs/heads/dev/kbroch/json-schema-ids/schemas/schema_defs.json#/$defs/author"
           }
         },
         "extensions": {
           "type": "array",
           "items": {
-            "$ref": "/schemas/schema_defs.json#/$defs/extension_name_and_version"
+            "$ref": "/riscv-software-src/riscv-unified-db/refs/heads/dev/kbroch/json-schema-ids/schemas/schema_defs.json#/$defs/extension_name_and_version"
           },
           "description": "List of extensions defined in this volume, with version numbers"
         },
@@ -85,7 +85,7 @@
       }
     },
     "version": {
-      "$ref": "/schemas/schema_defs.json#/$defs/semantic_version",
+      "$ref": "/riscv-software-src/riscv-unified-db/refs/heads/dev/kbroch/json-schema-ids/schemas/schema_defs.json#/$defs/semantic_version",
       "description": "Semantic version number within the manual"
     },
     "marketing_version": {
@@ -93,7 +93,7 @@
       "description": "The publicly displayed version number"
     },
     "state": {
-      "$ref": "/schemas/schema_defs.json#/$defs/spec_state",
+      "$ref": "/riscv-software-src/riscv-unified-db/refs/heads/dev/kbroch/json-schema-ids/schemas/schema_defs.json#/$defs/spec_state",
       "description": "State of this version"
     },
     "url": {

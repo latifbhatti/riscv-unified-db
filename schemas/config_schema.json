@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://raw.githubusercontent.com/riscv-software-src/riscv-unified-db/refs/heads/dev/kbroch/json-schema-ids/schemas/config_schema.json",
+  "$id": "https://raw.githubusercontent.com/riscv-software-src/riscv-unified-db/refs/heads/dev/kbroch/json-schema-ids/riscv-software-src/riscv-unified-db/refs/heads/dev/kbroch/json-schema-ids/schemas/config_schema.json",
   "type": "object",
   "title": "Architecture configuration",
   "required": ["$schema", "kind", "type", "name", "description"],
@@ -79,7 +79,7 @@
             "description": "Extensions mandatory in this architecture",
             "type": "array",
             "items": {
-              "$ref": "/schemas/schema_defs.json#/$defs/extension_requirement"
+              "$ref": "/riscv-software-src/riscv-unified-db/refs/heads/dev/kbroch/json-schema-ids/schemas/schema_defs.json#/$defs/extension_requirement"
             },
             "default": {
               "const": []
@@ -89,7 +89,7 @@
             "description": "Extensions that are not mandatory but are still _special_ in this architecture. This could mean different things depending on the context: for certificates or generated IP, this would correspond to _optional supported_, and extensions not in non_mandatory are not possible. For profiles, this corresponds to some type of _profile optional_, but extensions in non_mandatory are still possible.",
             "type": "array",
             "items": {
-              "$ref": "/schemas/schema_defs.json#/$defs/extension_requirement"
+              "$ref": "/riscv-software-src/riscv-unified-db/refs/heads/dev/kbroch/json-schema-ids/schemas/schema_defs.json#/$defs/extension_requirement"
             },
             "default": {
               "const": []
@@ -99,7 +99,7 @@
             "description": "Extensions explicitly prohibited in this architecture. Does *not* need to include extensions that are excluded because of a conflict-by-definition with a mandatory extension, as those will be calculated automatically",
             "type": "array",
             "items": {
-              "$ref": "/schemas/schema_defs.json#/$defs/extension_requirement"
+              "$ref": "/riscv-software-src/riscv-unified-db/refs/heads/dev/kbroch/json-schema-ids/schemas/schema_defs.json#/$defs/extension_requirement"
             },
             "default": {
               "const": []
