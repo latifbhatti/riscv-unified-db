@@ -57,3 +57,13 @@ repos:
       #   alias: check-jsonschema-manual-version
       #   files: ^arch/manual/.*\.(yaml|yml)$
       #   args: ["--schemafile", "schemas/manual_version_schema.json"]
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    # Ruff version.
+    rev: v0.8.6
+    hooks:
+      # Run the linter.
+      - id: ruff
+        args: [--fix]
+      # Run the formatter.
+      - id: ruff-format
