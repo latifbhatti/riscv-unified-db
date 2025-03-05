@@ -583,6 +583,14 @@ fields:
       * When 1, interrupts that are not otherwise disabled with a field in `mie` are enabled.
 
     type: RW-H
+    sw_write(csr_value): |
+      if ((MXLEN == 64) && (csr_value.MDT == 1) && (csr_value.MIE == 1)) {
+        return 0;
+      } else if ((MXLEN == 32) && (CSR[mstatush].MDT == 1) && (csr_value.MIE == 1)) {
+        return 0;
+      } else {
+        return csr_value.MIE;
+      }
     reset_value: 0
   SIE:
     location: 1
