@@ -1,0 +1,15 @@
+[tools]
+python = "latest"
+uv = "latest"
+
+[env]
+_.python.venv = { path = ".venv", create = true }
+
+[tasks.install-py-deps]
+description = "Install dependencies"
+alias = "i"
+run = "uv pip install -r requirements.txt"
+
+[tasks."bundle:install"]
+description = "Install gem dependencies"
+run = "bundle install"
