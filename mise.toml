@@ -27,3 +27,6 @@ run = "bundle install"
 
 [tasks."pre-commit:run:-all-files"]
 run = "pre-commit run --all-files"
+
+[tasks."do"]
+run = '''bundle exec --gemfile Gemfile ruby -r rake -e "Rake.application.init('do');Rake.application.load_rakefile;;Rake.application.top_level" -- do $1'''
