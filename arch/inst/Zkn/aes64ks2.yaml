@@ -8,7 +8,7 @@ description:
   - id: instr-aes64ks2-behavior
     normative: true
     text: |
-      This instruction implements the additional XOR'ing of key words as part of the AES block cipher
+      Implements the additional XOR'ing of key words as part of the AES block cipher
       Key Schedule.
 definedBy:
   anyOf: [Zknd, Zkne]

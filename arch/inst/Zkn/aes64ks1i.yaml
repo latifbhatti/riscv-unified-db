@@ -8,7 +8,7 @@ description:
   - id: inst-aes64ks1i-behavior
     normative: true
     text: |
-      This instruction implements the rotation, SubBytes and Round Constant addition steps of the AES
+      Implements the rotation, SubBytes and Round Constant addition steps of the AES
       block cipher Key Schedule.
   - id: inst-aes64ks1i-range
     normative: true
