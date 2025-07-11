@@ -3,9 +3,13 @@
 $schema: "inst_schema.json#"
 kind: instruction
 name: vadd.vv
-long_name: No synopsis available
+long_name: vector single-width integer addition(vector to vector)
 description: |
-  No description available.
+  The VADD.VV instruction performs an element-wise addition between two source vector registers vs1 and vs2. The result is stored in the destination vector register vd.
+  The element width is determined by SEW (Standard Element Width), which can be 8, 16, 32, or 64 bits.
+  Both source vectors and the destination vector use the same SEW.
+  The operation is masked using the vector mask register vm. If mask[i] = true, the operation is applied; otherwise, the corresponding element in vd remains unchanged.
+  Tailing elements beyond the active vector length (vl) are handled based on the vtype.
 definedBy: V
 assembly: vd, vs2, vs1, vm
 encoding:
@@ -26,6 +30,21 @@ access:
   vu: always
 data_independent_timing: true
 operation(): |
+  U32 vd_elements = 0;
+
+  for (U32 register_number = 0; register_number < (CSR[vtype].VLMUL); register_number++) {
+    for (U32 element_number = 0; element_number < elements_count; element_number++) {
+      vd_elements =
+      perform_vector_operation(
+        get_vector_element<SEW>(vs1+register_number,element_number) + get_vector_element<SEW>(vs2+register_number,element_number),   #vs1+vs2
+        get_vector_element<SEW>(vd+register_number,element_number),           #vd for previous data()
+        v[0][vstart],    #masking bit from vs0
+        $encoding
+      );
+      v[vd+register_number] = vd_elements `<< SEW;
+      vstart = vstart + 1;
+    }
+  }
 
 # SPDX-SnippetBegin
 # SPDX-FileCopyrightText: 2017-2025 Contributors to the RISCV Sail Model <https://github.com/riscv/sail-riscv/blob/master/LICENCE>

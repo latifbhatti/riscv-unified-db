@@ -3,7 +3,7 @@
 $schema: "inst_schema.json#"
 kind: instruction
 name: vminu.vv
-long_name: No synopsis available
+long_name: Vector Unsigned Integer Minimum (vector to vector)
 description: |
   No description available.
 definedBy: V
@@ -26,6 +26,20 @@ access:
   vu: always
 data_independent_timing: false
 operation(): |
+  # Bits<32> elements_count = VLEN *M1/ SEW;
+  # Bits<SEW> vs1_elements[elements_count] = bits_to_elements<SEW,elements_count>({v[vs1],v[vs1+1],v[vs1+2],v[vs1+3],v[vs1+4],v[vs1+5],v[vs1+6],v[vs1+7]});
+  # Bits<SEW> vs2_elements[elements_count] = bits_to_elements<SEW,elements_count>({v[vs2],v[vs2+1],v[vs2+2],v[vs2+3],v[vs2+4],v[vs2+5],v[vs2+6],v[vs2+7]});
+  # Bits<SEW> vd_elements[elements_count]  = bits_to_elements<SEW,elements_count>({v[vd],v[vd+1],v[vd+2],v[vd+3],v[vd+4],v[vd+5],v[vd+6],v[vd+7]);
+  # for (U32 i = 0; i < elements_count; i++) {
+  #   vd_elements[i] =
+  #   perform_vector_operation(
+  #     ((vs2_elements[i]) < (vs1_elements[i])) ? vs2_elements[i] : vs1_elements[i],
+  #     vd_elements[i],           #vd for previous data()
+  #     v[0][vstart],    #masking bit from vs0
+  #     $encoding
+  #   );
+  #   vstart = vstart + 1;
+  # }
 
 # SPDX-SnippetBegin
 # SPDX-FileCopyrightText: 2017-2025 Contributors to the RISCV Sail Model <https://github.com/riscv/sail-riscv/blob/master/LICENCE>

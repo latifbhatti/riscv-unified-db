@@ -21,7 +21,7 @@ enum VectorLmulType {
 
 struct VectorState {
   Bits<7> sew;
-  VectorMultiplierDirection lmul_type;
+  VectorLmulType lmul_type;
   Bits<2> log2_multiplier;
 }
 

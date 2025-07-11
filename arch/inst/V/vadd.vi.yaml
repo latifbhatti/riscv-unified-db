@@ -3,9 +3,12 @@
 $schema: "inst_schema.json#"
 kind: instruction
 name: vadd.vi
-long_name: No synopsis available
+long_name: vector single-width integer addition(vector to immediate)
 description: |
-  No description available.
+  The VI_VADD instruction performs element-wise addition between each element of the source vector register vs2 and a sign-extended immediate value imm. The result is stored in the destination vector register vd.
+  The element width is determined by SEW (Standard Element Width), which can be 8, 16, 32, or 64 bits.
+  The immediate is sign-extended to match the SEW.
+  The operation is masked using the vector mask register vm. Only elements with mask[i] = true are updated; others retain their original values from vd.
 definedBy: V
 assembly: vd, vs2, imm, vm
 encoding:
@@ -26,6 +29,22 @@ access:
   vu: always
 data_independent_timing: true
 operation(): |
+  Bits<32> elements_count = VLEN *M1/ SEW;
+  U32 vd_elements = 0;
+
+  for (U32 register_number = 0; register_number < M1; register_number++) {
+    for (U32 element_number = 0; element_number < elements_count; element_number++) {
+      vd_elements =
+      perform_vector_operation(
+        imm + get_vector_element<SEW>(vs2+register_number,element_number),   #imm+vs2
+        get_vector_element<SEW>(vd+register_number,element_number),          #vd for previous data()
+        v[0][vstart],    #masking bit from vs0
+        $encoding
+      );
+      v[vd+register_number] = vd_elements << SEW;
+      vstart = vstart + 1;
+    }
+  }
 
 # SPDX-SnippetBegin
 # SPDX-FileCopyrightText: 2017-2025 Contributors to the RISCV Sail Model <https://github.com/riscv/sail-riscv/blob/master/LICENCE>

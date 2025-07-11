@@ -6,11 +6,11 @@ name: vsetvli
 long_name: Vector Set Vector Type and Vector Length Immediate
 description: Set the vtype and vl CSRs, and write the new value of vl into rd.
 definedBy: V
-assembly: xd, xs1, vtypei
+assembly: xd, xs1, zimm11
 encoding:
   match: 0----------------111-----1010111
   variables:
-    - name: xs1
+    - name: zimm11
       location: 30-20
     - name: xs1
       location: 19-15
@@ -24,11 +24,11 @@ access:
 data_independent_timing: false
 operation(): |
   VectorState state = vector_state();
-  XReg VLMAX = (VLEN <<< state.log2_multiplier) >> (3 + state.vsew);
-  if (xs1 < VLMAX) {
-    CSR[vl].VALUE = X[rs1];
-  } else if (xs1 < 2*VLMAX) {
-    CSR[vl].VALUE = X[rs1] / 2;
+  XReg VLMAX = (VLEN << state.log2_multiplier) >> (3 + state.sew);
+  if (X[xs1] < VLMAX) {
+    CSR[vl].VALUE = X[xs1];
+  } else if (X[xs1] < 2*VLMAX) {
+    CSR[vl].VALUE = X[xs1] / 2;
   } else {
     CSR[vl].VALUE = VLMAX;
   }
@@ -37,7 +37,7 @@ operation(): |
   CSR[vtype].VTA = zimm11[6];
   CSR[vtype].VSEW = zimm11[5:3];
   CSR[vtype].VLMUL = zimm11[2:0];
-  X[rd] = CSR[vl].VALUE;
+  X[xd] = CSR[vl].VALUE;
   CSR[vstart].VALUE = 0;
 # SPDX-SnippetBegin
 # SPDX-FileCopyrightText: 2017-2025 Contributors to the RISCV Sail Model <https://github.com/riscv/sail-riscv/blob/master/LICENCE>

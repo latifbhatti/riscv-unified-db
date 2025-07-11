@@ -3,7 +3,7 @@
 $schema: "inst_schema.json#"
 kind: instruction
 name: vsub.vv
-long_name: No synopsis available
+long_name: Vector Single-Width Integer Subtract (vector to vector)
 description: |
   No description available.
 definedBy: V
@@ -26,6 +26,22 @@ access:
   vu: always
 data_independent_timing: true
 operation(): |
+  Bits<32> elements_count = VLEN *M1/ SEW;
+  U32 vd_elements = 0;
+
+  for (U32 register_number = 0; register_number < M1; register_number++) {
+    for (U32 element_number = 0; element_number < elements_count; element_number++) {
+      vd_elements =
+      perform_vector_operation(
+        get_vector_element<SEW>(vs1+register_number,element_number) - get_vector_element<SEW>(vs2+register_number,element_number),   #vs1+vs2
+        get_vector_element<SEW>(vd+register_number,element_number),           #vd for previous data()
+        v[0][vstart],    #masking bit from vs0
+        $encoding
+      );
+      v[vd+register_number] = vd_elements << SEW;
+      vstart = vstart + 1;
+    }
+  }
 
 # SPDX-SnippetBegin
 # SPDX-FileCopyrightText: 2017-2025 Contributors to the RISCV Sail Model <https://github.com/riscv/sail-riscv/blob/master/LICENCE>

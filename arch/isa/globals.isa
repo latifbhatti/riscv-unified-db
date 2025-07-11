@@ -5,7 +5,8 @@ include "interrupts.idl"
 include "fetch.idl"
 include "util.idl"
 include "fp.idl"
-
+include "v.idl"
+include "vec.idl"
 # global state
 
 # general purpose register file
