@@ -1,0 +1,118 @@
+# Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+# SPDX-License-Identifier: BSD-3-Clause-Clear
+
+# yaml-language-server: $schema=../../../../schemas/inst_schema.json
+
+$schema: "inst_schema.json#"
+kind: instruction
+name: vadd.vi
+long_name: vector single-width integer addition(vector to immediate)
+description: |
+  The VI_VADD instruction performs element-wise addition between each element of the source vector register vs2 and a sign-extended immediate value imm. The result is stored in the destination vector register vd.
+  The element width is determined by SEW (Standard Element Width), which can be 8, 16, 32, or 64 bits.
+  The immediate is sign-extended to match the SEW.
+  The operation is masked using the vector mask register vm. Only elements with mask[i] = true are updated; others retain their original values from vd.
+definedBy: V
+assembly: vd, vs2, imm, vm
+encoding:
+  match: 000000-----------011-----1010111
+  variables:
+    - name: vm
+      location: 25-25
+    - name: vs2
+      location: 24-20
+    - name: imm
+      location: 19-15
+    - name: vd
+      location: 11-7
+access:
+  s: always
+  u: always
+  vs: always
+  vu: always
+data_independent_timing: true
+operation(): |
+  Bits<32> elements_count = VLEN *M1/ SEW;
+  U32 vd_elements = 0;
+
+  for (U32 register_number = 0; register_number < M1; register_number++) {
+    for (U32 element_number = 0; element_number < elements_count; element_number++) {
+      vd_elements =
+      perform_vector_operation(
+        imm + get_vector_element<SEW>(vs2+register_number,element_number),   #imm+vs2
+        get_vector_element<SEW>(vd+register_number,element_number),          #vd for previous data()
+        v[0][vstart],    #masking bit from vs0
+        $encoding
+      );
+      v[vd+register_number] = vd_elements << SEW;
+      vstart = vstart + 1;
+    }
+  }
+
+# SPDX-SnippetBegin
+# SPDX-FileCopyrightText: 2017-2025 Contributors to the RISCV Sail Model <https://github.com/riscv/sail-riscv/blob/master/LICENCE>
+# SPDX-License-Identifier: BSD-2-Clause
+sail(): |
+  {
+    let SEW      = get_sew();
+    let LMUL_pow = get_lmul_pow();
+    let num_elem = get_num_elem(LMUL_pow, SEW);
+
+    if illegal_normal(vd, vm) then { handle_illegal(); return RETIRE_FAIL };
+
+    let 'n = num_elem;
+    let 'm = SEW;
+
+    let vm_val  : vector('n, dec, bool)     = read_vmask(num_elem, vm, 0b00000);
+    let imm_val : bits('m)                  = sign_extend(simm);
+    let vs2_val : vector('n, dec, bits('m)) = read_vreg(num_elem, SEW, LMUL_pow, vs2);
+    let vd_val  : vector('n, dec, bits('m)) = read_vreg(num_elem, SEW, LMUL_pow, vd);
+    result      : vector('n, dec, bits('m)) = undefined;
+    mask        : vector('n, dec, bool)     = undefined;
+
+    (result, mask) = init_masked_result(num_elem, SEW, LMUL_pow, vd_val, vm_val);
+
+    foreach (i from 0 to (num_elem - 1)) {
+      if mask[i] then {
+        result[i] = match funct6 {
+          VI_VADD    => vs2_val[i] + imm_val,
+          VI_VRSUB   => imm_val - vs2_val[i],
+          VI_VAND    => vs2_val[i] & imm_val,
+          VI_VOR     => vs2_val[i] | imm_val,
+          VI_VXOR    => vs2_val[i] ^ imm_val,
+          VI_VSADDU  => unsigned_saturation('m, zero_extend('m + 1, vs2_val[i]) + zero_extend('m + 1, imm_val) ),
+          VI_VSADD   => signed_saturation('m, sign_extend('m + 1, vs2_val[i]) + sign_extend('m + 1, imm_val) ),
+          VI_VSLL    => {
+                          let shift_amount = get_shift_amount(zero_extend('m, simm), SEW);
+                          vs2_val[i] << shift_amount
+                        },
+          VI_VSRL    => {
+                          let shift_amount = get_shift_amount(zero_extend('m, simm), SEW);
+                          vs2_val[i] >> shift_amount
+                        },
+          VI_VSRA    => {
+                          let shift_amount = get_shift_amount(zero_extend('m, simm), SEW);
+                          let v_double : bits('m * 2) = sign_extend(vs2_val[i]);
+                          slice(v_double >> shift_amount, 0, SEW)
+                        },
+          VI_VSSRL   => {
+                          let shift_amount = get_shift_amount(zero_extend('m, simm), SEW);
+                          let rounding_incr = get_fixed_rounding_incr(vs2_val[i], shift_amount);
+                          (vs2_val[i] >> shift_amount) + zero_extend('m, rounding_incr)
+                        },
+          VI_VSSRA   => {
+                          let shift_amount = get_shift_amount(zero_extend('m, simm), SEW);
+                          let rounding_incr = get_fixed_rounding_incr(vs2_val[i], shift_amount);
+                          let v_double : bits('m * 2) = sign_extend(vs2_val[i]);
+                          slice(v_double >> shift_amount, 0, SEW) + zero_extend('m, rounding_incr)
+                        }
+        }
+      }
+    };
+
+    write_vreg(num_elem, SEW, LMUL_pow, vd, result);
+    vstart = zeros();
+    RETIRE_SUCCESS
+  }
+
+# SPDX-SnippetEnd
