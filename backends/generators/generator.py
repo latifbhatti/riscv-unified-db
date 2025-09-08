@@ -47,9 +47,10 @@ def build_match_from_format(format_field):
             except (ValueError, IndexError):
                 continue  # Skip invalid location formats
     
-    # Check variables for bit positions
+    # Check variables for bit positions (support list or dict shapes)
     variables = format_field.get("variables", [])
     if isinstance(variables, list):
+        # Unresolved schemas might use a list of variable dicts
         for var in variables:
             if (
                 isinstance(var, dict)
@@ -58,6 +59,23 @@ def build_match_from_format(format_field):
             ):
                 try:
                     location = var["location"]
+                    if "-" in location:
+                        high = int(location.split("-")[0])
+                    else:
+                        high = int(location)
+                    max_bit_positions.append(high)
+                except (ValueError, IndexError):
+                    continue  # Skip invalid location formats
+    elif isinstance(variables, dict):
+        # Resolved schemas use a dict mapping variable name -> dict
+        for var_data in variables.values():
+            if (
+                isinstance(var_data, dict)
+                and "location" in var_data
+                and isinstance(var_data["location"], str)
+            ):
+                try:
+                    location = var_data["location"]
                     if "-" in location:
                         high = int(location.split("-")[0])
                     else:
