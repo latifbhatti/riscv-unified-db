@@ -23,12 +23,37 @@ def build_match_from_format(format_field):
     Supports 16-bit, 32-bit, and 48-bit instructions.
     """
     if not format_field or "opcodes" not in format_field:
-        return None
+        raise ValueError("format field missing required 'opcodes' section")
 
     opcodes = format_field["opcodes"]
 
     # Determine instruction width by finding maximum bit position across all fields
     max_bit_positions = []
+
+    # Helper to extract highest bit index from a location string.
+    # Supports forms like "31-25", "14", and composite locations like "31-25|11-7".
+    def highest_bit_from_location(loc_str: str):
+        if not isinstance(loc_str, str):
+            raise ValueError(f"Unsupported location type: {type(loc_str)}")
+        highs = []
+        for segment in loc_str.split("|"):
+            seg = segment.strip()
+            if not seg:
+                continue
+            if "-" in seg:
+                try:
+                    high = int(seg.split("-")[0])
+                except Exception as e:
+                    raise ValueError(f"Invalid location segment '{seg}': {e}")
+                highs.append(high)
+            else:
+                try:
+                    highs.append(int(seg))
+                except Exception as e:
+                    raise ValueError(f"Invalid location segment '{seg}': {e}")
+        if not highs:
+            raise ValueError(f"Could not parse location '{loc_str}'")
+        return max(highs)
     
     # Check opcodes for bit positions
     for field_data in opcodes.values():
@@ -37,15 +62,8 @@ def build_match_from_format(format_field):
             and "location" in field_data
             and isinstance(field_data["location"], str)
         ):
-            try:
-                location = field_data["location"]
-                if "-" in location:
-                    high = int(location.split("-")[0])
-                else:
-                    high = int(location)
-                max_bit_positions.append(high)
-            except (ValueError, IndexError):
-                continue  # Skip invalid location formats
+            high = highest_bit_from_location(field_data["location"])
+            max_bit_positions.append(high)
     
     # Check variables for bit positions (support list or dict shapes)
     variables = format_field.get("variables", [])
@@ -57,15 +75,8 @@ def build_match_from_format(format_field):
                 and "location" in var
                 and isinstance(var["location"], str)
             ):
-                try:
-                    location = var["location"]
-                    if "-" in location:
-                        high = int(location.split("-")[0])
-                    else:
-                        high = int(location)
-                    max_bit_positions.append(high)
-                except (ValueError, IndexError):
-                    continue  # Skip invalid location formats
+                high = highest_bit_from_location(var["location"])
+                max_bit_positions.append(high)
     elif isinstance(variables, dict):
         # Resolved schemas use a dict mapping variable name -> dict
         for var_data in variables.values():
@@ -74,18 +85,11 @@ def build_match_from_format(format_field):
                 and "location" in var_data
                 and isinstance(var_data["location"], str)
             ):
-                try:
-                    location = var_data["location"]
-                    if "-" in location:
-                        high = int(location.split("-")[0])
-                    else:
-                        high = int(location)
-                    max_bit_positions.append(high)
-                except (ValueError, IndexError):
-                    continue  # Skip invalid location formats
+                high = highest_bit_from_location(var_data["location"])
+                max_bit_positions.append(high)
     
     if not max_bit_positions:
-        return None
+        raise ValueError("Could not determine instruction width: no field locations found")
     
     max_bit = max(max_bit_positions)
     
@@ -94,32 +98,52 @@ def build_match_from_format(format_field):
     match_bits = ["-"] * width
 
     # Populate match string with opcode bits
+    bits_written = 0
     for field_data in opcodes.values():
         if (
             isinstance(field_data, dict)
             and "location" in field_data
             and "value" in field_data
             and isinstance(field_data["location"], str)
-            and isinstance(field_data["value"], int)
         ):
+            location = field_data["location"]
+            if "|" in location:
+                # We don't support non-contiguous opcode fields; this should be modeled as variables
+                raise NotImplementedError(
+                    f"Non-contiguous opcode location not supported: '{location}'"
+                )
 
-            try:
-                location = field_data["location"]
-                if "-" in location:
-                    high, low = map(int, location.split("-"))
+            # Parse location range
+            if "-" in location:
+                high, low = map(int, location.split("-"))
+            else:
+                high = low = int(location)
+
+            if high < low or high >= width:
+                raise ValueError(
+                    f"Invalid opcode bit range '{location}' for width {width}"
+                )
+
+            # Ensure value is an int; allow base-prefixed strings
+            val = field_data["value"]
+            if not isinstance(val, int):
+                if isinstance(val, str):
+                    try:
+                        val = int(val, 0)
+                    except Exception as e:
+                        raise ValueError(f"Invalid opcode value '{val}': {e}")
                 else:
-                    high = low = int(location)
+                    raise ValueError(f"Unsupported opcode value type: {type(val)}")
 
-                if high < low or high >= width:
-                    continue  # Skip invalid bit ranges
+            binary_value = format(val, f"0{high - low + 1}b")
+            for i, bit in enumerate(binary_value):
+                pos = high - i
+                if 0 <= pos < width:
+                    match_bits[width - 1 - pos] = bit
+                    bits_written += 1
 
-                binary_value = format(field_data["value"], f"0{high - low + 1}b")
-                for i, bit in enumerate(binary_value):
-                    pos = high - i
-                    if 0 <= pos < width:
-                        match_bits[width - 1 - pos] = bit
-            except (ValueError, IndexError):
-                continue  # Skip invalid field data
+    if bits_written == 0:
+        raise ValueError("No fixed opcode bits found while building match string")
 
     return "".join(match_bits)
 
@@ -287,18 +311,17 @@ def load_instructions(
                 # Check if this instruction uses the new schema with a 'format' field
                 format_field = data.get("format")
                 if format_field:
-                    # Try to build a match string from the format field
-                    match_string = build_match_from_format(format_field)
-                    if match_string:
+                    # Build a match string from the format field. Hard-fail if unsupported.
+                    try:
+                        match_string = build_match_from_format(format_field)
                         # Create a synthetic encoding compatible with existing logic
                         encoding = {"match": match_string, "variables": []}
                         logging.debug(f"Built encoding from format field for {name}")
-                    else:
-                        logging.error(
-                            f"Could not build encoding from format field in instruction {name} in {path}"
+                    except Exception as e:
+                        # Hard break as requested: bubble up a clear error for unhandled/unknown cases
+                        raise RuntimeError(
+                            f"Failed to build encoding from format for instruction '{name}' in {path}: {e}"
                         )
-                        encoding_filtered += 1
-                        continue
                 else:
                     logging.error(
                         f"Missing 'encoding' field in instruction {name} in {path}"
