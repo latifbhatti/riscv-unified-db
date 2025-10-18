@@ -1,7 +1,11 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: BSD-3-Clause-Clear
+# Copyright (c) 2025 RISC-V International
+
 import asyncio
 import json
 import os
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any, Dict, List
@@ -15,6 +19,62 @@ from mcp.types import Tool, TextContent
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 GEN_DIR = REPO_ROOT / "gen"
+
+# CPU Configuration
+CPU_CONFIG = os.environ.get("RISCV_CPU_CONFIG", "rv64")
+FORCE_REGEN = os.environ.get("FORCE_REGEN", "").lower() in ("1", "true", "yes")
+CONFIG_GEN_DIR = GEN_DIR / "arch" / CPU_CONFIG
+
+
+def generate_cpu_config(config_name: str, force: bool = False) -> bool:
+    """
+    Generate ISA data for a specific CPU configuration using Ruby resolver
+
+    Returns:
+        True if successful or already exists, False on error
+    """
+    gen_dir = GEN_DIR / "arch" / config_name
+
+    # Check if already generated
+    if gen_dir.exists() and not force:
+        print(f"Config '{config_name}' already generated at {gen_dir}", file=sys.stderr)
+        return True
+
+    # Verify config file exists
+    config_file = REPO_ROOT / "cfgs" / f"{config_name}.yaml"
+    if not config_file.exists():
+        print(f"ERROR: Config file not found: {config_file}", file=sys.stderr)
+        return False
+
+    try:
+        print(f"Generating ISA data for config '{config_name}'...", file=sys.stderr)
+
+        # Use a Ruby script that properly loads the environment
+        script_path = REPO_ROOT / "tools/mcp_gen_server/gen_config.rb"
+
+        result = subprocess.run(
+            ["bundle", "exec", "ruby", str(script_path), config_name],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+            timeout=300,  # 5 minute timeout
+        )
+
+        if result.returncode != 0:
+            print(f"ERROR: Ruby generation failed", file=sys.stderr)
+            print(f"STDOUT: {result.stdout}", file=sys.stderr)
+            print(f"STDERR: {result.stderr}", file=sys.stderr)
+            return False
+
+        print(f"Success: {result.stdout.strip()}", file=sys.stderr)
+        return True
+
+    except subprocess.TimeoutExpired:
+        print(f"ERROR: Generation timed out (>5 minutes)", file=sys.stderr)
+        return False
+    except Exception as e:
+        print(f"ERROR: {e}", file=sys.stderr)
+        return False
 
 
 def _ensure_in_gen(path: Path) -> Path:
@@ -30,10 +90,10 @@ def _ensure_in_gen(path: Path) -> Path:
 
 
 async def list_gen_yaml():
-    if not GEN_DIR.exists():
-        return CallToolResult(content=[TextContent(type="text", text="[]")])
+    if not CONFIG_GEN_DIR.exists():
+        return [TextContent(type="text", text="[]")]
     paths: List[str] = []
-    for root, _dirs, files in os.walk(GEN_DIR):
+    for root, _dirs, files in os.walk(CONFIG_GEN_DIR):
         for f in files:
             if f.lower().endswith((".yaml", ".yml")):
                 full = Path(root) / f
@@ -48,56 +108,47 @@ async def read_gen_yaml(args: Dict[str, Any]):
     if not isinstance(rel, str):
         raise ValueError("'path' arg must be a string")
     p = _ensure_in_gen(Path(rel))
-    with open(p, "r", encoding="utf-8") as fh:
+    with open(p, encoding="utf-8") as fh:
         data = yaml.safe_load(fh)
     return [TextContent(type="text", text=json.dumps(data, ensure_ascii=False))]
 
 
 def _iter_instruction_yaml_paths() -> List[Path]:
     paths: List[Path] = []
-    if not GEN_DIR.exists():
+    inst_dir = CONFIG_GEN_DIR / "inst"
+    if not inst_dir.exists():
         return paths
-    for root, _dirs, files in os.walk(GEN_DIR):
+    for root, _dirs, files in os.walk(inst_dir):
         root_p = Path(root)
-        # Only consider instruction folders
-        if "inst" not in root_p.parts:
-            continue
         for f in files:
             if f.lower().endswith((".yaml", ".yml")):
-                p = root_p / f
-                # Must be under spec/*/inst or resolved_spec/*/inst
-                if any(part in {"spec", "resolved_spec"} for part in p.relative_to(GEN_DIR).parts):
-                    paths.append(p)
+                paths.append(root_p / f)
     return paths
 
 
 def _iter_csr_yaml_paths() -> List[Path]:
     paths: List[Path] = []
-    if not GEN_DIR.exists():
+    csr_dir = CONFIG_GEN_DIR / "csr"
+    if not csr_dir.exists():
         return paths
-    for root, _dirs, files in os.walk(GEN_DIR):
+    for root, _dirs, files in os.walk(csr_dir):
         root_p = Path(root)
-        if "csr" not in root_p.parts:
-            continue
         for f in files:
             if f.lower().endswith((".yaml", ".yml")):
-                p = root_p / f
-                paths.append(p)
+                paths.append(root_p / f)
     return paths
 
 
 def _iter_extension_yaml_paths() -> List[Path]:
     paths: List[Path] = []
-    if not GEN_DIR.exists():
+    ext_dir = CONFIG_GEN_DIR / "ext"
+    if not ext_dir.exists():
         return paths
-    for root, _dirs, files in os.walk(GEN_DIR):
+    for root, _dirs, files in os.walk(ext_dir):
         root_p = Path(root)
-        if "ext" not in root_p.parts:
-            continue
         for f in files:
             if f.lower().endswith((".yaml", ".yml")):
-                p = root_p / f
-                paths.append(p)
+                paths.append(root_p / f)
     return paths
 
 
@@ -135,7 +186,9 @@ async def search_instructions(args: Dict[str, Any]):
         raise ValueError("'term' must be a string if provided")
     if not isinstance(keys, list) or not all(isinstance(k, str) for k in keys):
         raise ValueError("'keys' must be a list of strings")
-    if not isinstance(extensions, list) or not all(isinstance(e, str) for e in extensions):
+    if not isinstance(extensions, list) or not all(
+        isinstance(e, str) for e in extensions
+    ):
         raise ValueError("'extensions' must be a list of strings")
 
     ext_set = {e for e in extensions}
@@ -152,7 +205,7 @@ async def search_instructions(args: Dict[str, Any]):
                 continue
 
         try:
-            with open(p, "r", encoding="utf-8") as fh:
+            with open(p, encoding="utf-8") as fh:
                 data = yaml.safe_load(fh) or {}
         except Exception:
             continue
@@ -162,7 +215,9 @@ async def search_instructions(args: Dict[str, Any]):
             continue
 
         defined_by = _extract_defined_by(data)
-        ext_from_path = _extension_in_path(rel.relative_to(GEN_DIR).parts if rel.is_relative_to(GEN_DIR) else rel.parts)
+        ext_from_path = _extension_in_path(
+            rel.relative_to(GEN_DIR).parts if rel.is_relative_to(GEN_DIR) else rel.parts
+        )
 
         # Extension filter
         if ext_set:
@@ -178,7 +233,11 @@ async def search_instructions(args: Dict[str, Any]):
             "name": data.get("name"),
             "long_name": data.get("long_name"),
             "assembly": data.get("assembly"),
-            "encoding": {"match": data.get("encoding", {}).get("match")} if isinstance(data.get("encoding"), dict) else None,
+            "encoding": (
+                {"match": data.get("encoding", {}).get("match")}
+                if isinstance(data.get("encoding"), dict)
+                else None
+            ),
             "definedBy": defined_by,
             "extensionInPath": ext_from_path,
         }
@@ -193,6 +252,7 @@ async def search_instructions(args: Dict[str, Any]):
 
 # ----- Functions (IDL) helpers -----
 
+
 def _find_funcs_adoc() -> tuple[Path | None, Path | None]:
     funcs_doc = None
     all_funcs = None
@@ -202,7 +262,11 @@ def _find_funcs_adoc() -> tuple[Path | None, Path | None]:
     for root, dirs, files in os.walk(cfg_root):
         root_p = Path(root)
         # prefer antora/modules/funcs/pages/funcs.adoc
-        if root_p.name == "pages" and "funcs" in root_p.parts and "modules" in root_p.parts:
+        if (
+            root_p.name == "pages"
+            and "funcs" in root_p.parts
+            and "modules" in root_p.parts
+        ):
             cand = root_p / "funcs.adoc"
             if cand.exists():
                 funcs_doc = cand
@@ -216,7 +280,7 @@ def _find_funcs_adoc() -> tuple[Path | None, Path | None]:
 def _parse_all_funcs_names(all_funcs_path: Path) -> list[str]:
     names: list[str] = []
     try:
-        with open(all_funcs_path, "r", encoding="utf-8") as fh:
+        with open(all_funcs_path, encoding="utf-8") as fh:
             for line in fh:
                 line = line.strip()
                 if line.startswith("* ") and "`" in line:
@@ -232,7 +296,7 @@ def _parse_all_funcs_names(all_funcs_path: Path) -> list[str]:
 def _parse_funcs_sections(funcs_path: Path) -> dict[str, str]:
     sections: dict[str, str] = {}
     try:
-        with open(funcs_path, "r", encoding="utf-8") as fh:
+        with open(funcs_path, encoding="utf-8") as fh:
             content = fh.read()
         # Split on level 2 headings "== name" (start of line)
         parts = re.split(r"^==\s+", content, flags=re.M)
@@ -304,7 +368,7 @@ async def find_function_usages(args: Dict[str, Any]):
     # scan instruction YAMLs
     for p in _iter_instruction_yaml_paths():
         try:
-            with open(p, "r", encoding="utf-8") as fh:
+            with open(p, encoding="utf-8") as fh:
                 data = yaml.safe_load(fh) or {}
         except Exception:
             continue
@@ -314,7 +378,13 @@ async def find_function_usages(args: Dict[str, Any]):
                 # crude snippet around first occurrence
                 idx = val.find(name)
                 snippet = val[max(0, idx - 60) : idx + 120]
-                hits.append({"path": str(p.relative_to(REPO_ROOT)), "key": key, "snippet": snippet})
+                hits.append(
+                    {
+                        "path": str(p.relative_to(REPO_ROOT)),
+                        "key": key,
+                        "snippet": snippet,
+                    }
+                )
                 count += 1
                 if count >= limit:
                     return {"count": count, "results": hits}
@@ -322,6 +392,7 @@ async def find_function_usages(args: Dict[str, Any]):
 
 
 # ----- CSR tools -----
+
 
 def _csr_extensions(data: dict) -> set[str]:
     exts: set[str] = set()
@@ -352,7 +423,9 @@ async def search_csrs(args: Dict[str, Any]):
         raise ValueError("'term' must be a string if provided")
     if not isinstance(keys, list) or not all(isinstance(k, str) for k in keys):
         raise ValueError("'keys' must be a list of strings")
-    if not isinstance(extensions, list) or not all(isinstance(e, str) for e in extensions):
+    if not isinstance(extensions, list) or not all(
+        isinstance(e, str) for e in extensions
+    ):
         raise ValueError("'extensions' must be a list of strings")
 
     ext_set = set(extensions)
@@ -364,7 +437,7 @@ async def search_csrs(args: Dict[str, Any]):
             if term.lower() not in p.stem.lower() and term.lower() not in rel.lower():
                 continue
         try:
-            with open(p, "r", encoding="utf-8") as fh:
+            with open(p, encoding="utf-8") as fh:
                 data = yaml.safe_load(fh) or {}
         except Exception:
             continue
@@ -391,8 +464,9 @@ async def search_csrs(args: Dict[str, Any]):
 
 # ----- Extension tools and associations -----
 
+
 def _load_yaml(path: Path) -> dict:
-    with open(path, "r", encoding="utf-8") as fh:
+    with open(path, encoding="utf-8") as fh:
         return yaml.safe_load(fh) or {}
 
 
@@ -404,18 +478,20 @@ async def list_extensions(_: Dict[str, Any] | None = None):
         except Exception:
             continue
         if data.get("kind") == "extension" and isinstance(data.get("name"), str):
-            items.append({
-                "path": str(p.relative_to(REPO_ROOT)),
-                "name": data.get("name"),
-                "long_name": data.get("long_name"),
-            })
+            items.append(
+                {
+                    "path": str(p.relative_to(REPO_ROOT)),
+                    "name": data.get("name"),
+                    "long_name": data.get("long_name"),
+                }
+            )
     # De-dup by name, favor shortest path
     by_name: dict[str, dict[str, Any]] = {}
     for it in items:
         n = it["name"]
         if n not in by_name or len(it["path"]) < len(by_name[n]["path"]):
             by_name[n] = it
-    return {"extensions": sorted(by_name.values(), key=lambda x: x["name"]) }
+    return {"extensions": sorted(by_name.values(), key=lambda x: x["name"])}
 
 
 async def read_extension(args: Dict[str, Any]):
@@ -441,7 +517,7 @@ async def extension_summary(args: Dict[str, Any]):
     if not isinstance(name, str) or not name:
         raise ValueError("'name' is required")
     # Extension metadata
-    ext_meta = (await read_extension({"name": name}))
+    ext_meta = await read_extension({"name": name})
     # Instructions
     insts: list[dict[str, Any]] = []
     for p in _iter_instruction_yaml_paths():
@@ -450,15 +526,23 @@ async def extension_summary(args: Dict[str, Any]):
         except Exception:
             continue
         defined_by = set(_extract_defined_by(data))
-        rel_parts = (p.relative_to(GEN_DIR).parts if str(p).startswith(str(GEN_DIR)) else p.parts)
+        rel_parts = (
+            p.relative_to(GEN_DIR).parts if str(p).startswith(str(GEN_DIR)) else p.parts
+        )
         ext_from_path = _extension_in_path(list(rel_parts))
         if name in defined_by or (ext_from_path == name):
-            insts.append({
-                "path": str(p.relative_to(REPO_ROOT)),
-                "name": data.get("name"),
-                "assembly": data.get("assembly"),
-                "encoding": data.get("encoding", {}).get("match") if isinstance(data.get("encoding"), dict) else None,
-            })
+            insts.append(
+                {
+                    "path": str(p.relative_to(REPO_ROOT)),
+                    "name": data.get("name"),
+                    "assembly": data.get("assembly"),
+                    "encoding": (
+                        data.get("encoding", {}).get("match")
+                        if isinstance(data.get("encoding"), dict)
+                        else None
+                    ),
+                }
+            )
             if len(insts) >= limit:
                 break
     # CSRs
@@ -470,12 +554,14 @@ async def extension_summary(args: Dict[str, Any]):
             continue
         csr_exts = _csr_extensions(data)
         if name in csr_exts:
-            csrs.append({
-                "path": str(p.relative_to(REPO_ROOT)),
-                "name": data.get("name"),
-                "address": data.get("address"),
-                "priv_mode": data.get("priv_mode"),
-            })
+            csrs.append(
+                {
+                    "path": str(p.relative_to(REPO_ROOT)),
+                    "name": data.get("name"),
+                    "address": data.get("address"),
+                    "priv_mode": data.get("priv_mode"),
+                }
+            )
             if len(csrs) >= limit:
                 break
     return {
@@ -487,6 +573,34 @@ async def extension_summary(args: Dict[str, Any]):
 
 
 async def main() -> None:
+    # Pre-generate the CPU configuration if needed
+    print(f"MCP Server starting with CPU config: {CPU_CONFIG}", file=sys.stderr)
+
+    # Check if config exists
+    if not CONFIG_GEN_DIR.exists() or FORCE_REGEN:
+        print(
+            f"Config '{CPU_CONFIG}' not found, attempting to generate...",
+            file=sys.stderr,
+        )
+        if not generate_cpu_config(CPU_CONFIG, force=FORCE_REGEN):
+            print(f"", file=sys.stderr)
+            print(f"ERROR: Failed to generate config '{CPU_CONFIG}'", file=sys.stderr)
+            print(f"", file=sys.stderr)
+            print(f"Workaround: Pre-generate using rake:", file=sys.stderr)
+            print(f"  cd {REPO_ROOT}", file=sys.stderr)
+            print(f"  bundle install", file=sys.stderr)
+            print(f"  bundle exec rake gen:arch", file=sys.stderr)
+            print(f"", file=sys.stderr)
+            print(f"Available pre-generated configs:", file=sys.stderr)
+            arch_dir = GEN_DIR / "arch"
+            if arch_dir.exists():
+                for cfg in sorted(arch_dir.iterdir()):
+                    if cfg.is_dir():
+                        print(f"  ✓ {cfg.name}", file=sys.stderr)
+            sys.exit(1)
+    else:
+        print(f"Using pre-generated config at: {CONFIG_GEN_DIR}", file=sys.stderr)
+
     server = Server("gen-yaml-mcp")
 
     @server.list_tools()
@@ -506,7 +620,10 @@ async def main() -> None:
                 inputSchema={
                     "type": "object",
                     "properties": {
-                        "path": {"type": "string", "description": "repo-relative path under gen/"}
+                        "path": {
+                            "type": "string",
+                            "description": "repo-relative path under gen/",
+                        }
                     },
                     "required": ["path"],
                 },
@@ -519,7 +636,10 @@ async def main() -> None:
                 inputSchema={
                     "type": "object",
                     "properties": {
-                        "term": {"type": "string", "description": "substring to match in filename/path"},
+                        "term": {
+                            "type": "string",
+                            "description": "substring to match in filename/path",
+                        },
                         "keys": {
                             "type": "array",
                             "items": {"type": "string"},
@@ -530,7 +650,12 @@ async def main() -> None:
                             "items": {"type": "string"},
                             "description": "extension symbols to match (definedBy or path)",
                         },
-                        "limit": {"type": "integer", "minimum": 1, "maximum": 500, "default": 50},
+                        "limit": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 500,
+                            "default": 50,
+                        },
                     },
                 },
             ),
@@ -564,7 +689,12 @@ async def main() -> None:
                     "type": "object",
                     "properties": {
                         "name": {"type": "string"},
-                        "limit": {"type": "integer", "minimum": 1, "maximum": 500, "default": 50},
+                        "limit": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 500,
+                            "default": 50,
+                        },
                     },
                     "required": ["name"],
                 },
@@ -578,7 +708,12 @@ async def main() -> None:
                         "term": {"type": "string"},
                         "keys": {"type": "array", "items": {"type": "string"}},
                         "extensions": {"type": "array", "items": {"type": "string"}},
-                        "limit": {"type": "integer", "minimum": 1, "maximum": 500, "default": 50},
+                        "limit": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 500,
+                            "default": 50,
+                        },
                     },
                 },
             ),
@@ -601,7 +736,10 @@ async def main() -> None:
                 description="Summarize an extension: its instructions and CSRs",
                 inputSchema={
                     "type": "object",
-                    "properties": {"name": {"type": "string"}, "limit": {"type": "integer", "minimum": 1, "maximum": 5000}},
+                    "properties": {
+                        "name": {"type": "string"},
+                        "limit": {"type": "integer", "minimum": 1, "maximum": 5000},
+                    },
                     "required": ["name"],
                 },
             ),
