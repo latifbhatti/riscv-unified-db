@@ -53,6 +53,8 @@ require_relative "obj/csr_field"
 require_relative "obj/exception_code"
 require_relative "obj/extension"
 require_relative "obj/instruction"
+require_relative "obj/instruction_operand"
+require_relative "obj/instruction_opcode"
 require_relative "obj/manual"
 require_relative "obj/portfolio"
 require_relative "obj/profile"
@@ -106,16 +108,16 @@ module Udb
         kind: DatabaseObject::Kind::Instruction
       },
       {
-        fn_name: "instruction_type",
-        arch_dir: "inst_type",
-        klass: InstructionType,
-        kind: DatabaseObject::Kind::InstructionType
+        fn_name: "instruction_opcode",
+        arch_dir: "inst_opcode",
+        klass: InstructionOpcode,
+        kind: DatabaseObject::Kind::InstructionOpcode
       },
       {
-        fn_name: "instruction_subtype",
-        arch_dir: "inst_subtype",
-        klass: InstructionSubtype,
-        kind: DatabaseObject::Kind::InstructionSubtype
+        fn_name: "instruction_operand",
+        arch_dir: "inst_operand",
+        klass: InstructionOperand,
+        kind: DatabaseObject::Kind::InstructionOperand
       },
       {
         fn_name: "csr",
@@ -300,13 +302,12 @@ module Udb
         when /^profile.*/
           profile_name = File.basename(file_path, ".yaml")
           profile(profile_name)
-        when %r{^inst_subtype/.*/.*}
-          inst_subtype_name = File.basename(file_path, ".yaml")
-          instruction_subtype(inst_subtype_name)
-        when %r{^inst_type/[^/]+}
-          # type
-          inst_type_name = File.basename(file_path, ".yaml")
-          instruction_type(inst_type_name)
+        when %r{^inst_opcode.*}
+          inst_opcode_name = File.basename(file_path, ".yaml")
+          instruction_opcode(inst_opcode_name)
+        when %r{^inst_operand.*}
+          inst_opcode_name = File.basename(file_path, ".yaml")
+          instruction_operand(inst_opcode_name)
         else
           raise "Unhandled ref object: #{file_path}"
         end

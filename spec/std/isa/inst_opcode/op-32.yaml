@@ -5,8 +5,8 @@
 
 $schema: inst_opcode_schema.json#
 kind: instruction_opcode
-name: OP-32
+name: op-32
 
-data:
-  display_name: OP-32
-  value: 0b0111011
+location: 6-0
+display_name: OP-32
+value: 0b0111011

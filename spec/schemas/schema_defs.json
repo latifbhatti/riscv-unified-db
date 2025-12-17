@@ -827,6 +827,14 @@
         }
       ]
     },
+    "idl_expression": {
+      "type": "string",
+      "description": "IDL expression"
+    },
+    "idl_function_body": {
+      "type": "string",
+      "description": "IDL function body"
+    },
 
     "uint32": {
       "type": "integer",

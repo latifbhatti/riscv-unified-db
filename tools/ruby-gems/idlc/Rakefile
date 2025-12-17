@@ -17,15 +17,21 @@ end
 
 namespace :chore do
   namespace :idlc do
+    task :tapioca do
+      ENV["BUNDLE_APP_CONFIG"] = ($root / ".bundle").to_s
+      Dir.chdir(RUBY_UDB_ROOT) do
+        sh "bundle exec --gemfile #{RUBY_UDB_ROOT}/Gemfile tapioca gems --all"
+        sh "bundle exec --gemfile #{RUBY_UDB_ROOT}/Gemfile tapioca dsl"
+        sh "bundle exec --gemfile #{RUBY_UDB_ROOT}/Gemfile tapioca annotations"
+      end
+    end
+
     task :update_deps do
       ENV["BUNDLE_APP_CONFIG"] = ($root / ".bundle").to_s
       Dir.chdir(IDLC_ROOT) do
         sh "bundle install --gemfile #{IDLC_ROOT}/Gemfile"
         sh "bundle update --gemfile #{IDLC_ROOT}/Gemfile --all"
-        sh "bundle list"
-        sh "bundle exec --gemfile #{IDLC_ROOT}/Gemfile tapioca gems --all"
-        sh "bundle exec --gemfile #{IDLC_ROOT}/Gemfile tapioca dsl"
-        sh "bundle exec --gemfile #{IDLC_ROOT}/Gemfile tapioca annotations"
+        Rake::Task["chore:udb:tapioca"].invoke
       end
     end
   end

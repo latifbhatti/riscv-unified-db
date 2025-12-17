@@ -252,7 +252,7 @@ module Idl
     # @return [Integer] the current line number
     sig { returns(Integer) }
     def lineno
-      T.must(input[0..interval.first]).count("\n") + 1 + (@starting_line.nil? ? 0 : @starting_line)
+      T.must(T.must(input)[0..T.must(interval).first]).count("\n") + 1 + (@starting_line.nil? ? 0 : @starting_line)
     end
 
     # @return [AstNode] the first ancestor that is_a?(+klass+)
@@ -278,27 +278,27 @@ module Idl
     sig { returns(LinesDescriptor) }
     def lines_around
       cnt = 0
-      interval_start = interval.min
+      interval_start = T.must(interval).min
       while cnt < 2
-        cnt += 1 if input[interval_start] == "\n"
+        cnt += 1 if T.must(input)[T.must(interval_start)] == "\n"
         break if interval_start.zero?
 
         interval_start -= 1
       end
 
       cnt = 0
-      interval_end = interval.max
+      interval_end = T.must(interval).max
       while cnt < 3
-        cnt += 1 if input[interval_end] == "\n"
-        break if interval_end >= (input.size - 1)
+        cnt += 1 if T.must(input)[interval_end] == "\n"
+        break if interval_end >= (T.must(input).size - 1)
         break if cnt == 3
 
         interval_end += 1
       end
 
       LinesDescriptor.new(
-        lines: T.must(input[interval_start..interval_end]),
-        problem_interval: (interval.min - interval_start..interval.max - interval_start),
+        lines: T.must(T.must(input)[interval_start..interval_end]),
+        problem_interval: (T.must(interval).min - interval_start..T.must(interval).max - interval_start),
         lines_interval: (interval_start + 1)..interval_end
       )
     end
@@ -345,7 +345,7 @@ module Idl
           ].join("")
         end
 
-      starting_lineno = T.must(input[0..lines_interval.min]).count("\n")
+      starting_lineno = T.must(T.must(input)[0..lines_interval.min]).count("\n")
       lines = lines.lines.map do |line|
         starting_lineno += 1
         "#{@starting_line + starting_lineno - 1}: #{line}"
@@ -486,15 +486,9 @@ module Idl
     def source_yaml
       {
         "file" => @input_file.to_s,
-        "begin" => interval.begin,
-        "end" => interval.max
+        "begin" => T.must(interval).begin,
+        "end" => T.must(interval).max
       }
-    end
-
-    sig { params(yaml: T::Hash[String, T.untyped]).returns(T::Array[T.any(String, T::Range[Integer])]) }
-    def self.from_source_yaml(yaml)
-      [input_from_source_yaml(yaml), interval_from_source_yaml(yaml)]
-      [yaml.fetch("file"), yaml.fetch("begin")..yaml.fetch("end")]
     end
 
     sig { params(yaml: T::Hash[String, T.untyped], source_mapper: T::Hash[String, String]).returns(T.nilable(String)) }
@@ -864,6 +858,9 @@ module Idl
 
     sig { override.params(symtab: SymbolTable).void }
     def type_check(symtab); end
+
+    sig { override.returns(T::Hash[String, T.untyped]) }
+    def to_h = raise "not implemented"
   end
 
   class TrueExpressionSyntaxNode < SyntaxNode
@@ -8044,7 +8041,7 @@ module Idl
       interval = interval_from_source_yaml(yaml.fetch("source"))
       FetchAst.new(
         input, interval,
-        AstNode.from_h(yaml.fetch("function_body"), source_mapper)
+        T.cast(AstNode.from_h(yaml.fetch("function_body"), source_mapper), FunctionBodyAst)
       )
     end
   end
@@ -9587,7 +9584,7 @@ end,
       "source" => source_yaml
     }
 
-    sig { params(yaml: T::Hash[String, T.untyped], source_mapper: T::Hash[String, String]).returns(CsrWriteExpressionAst) }
+    sig { params(yaml: T::Hash[String, T.untyped], source_mapper: T::Hash[String, String]).returns(CsrSoftwareWriteAst) }
     def self.from_h(yaml, source_mapper)
       raise "Bad YAML" unless yaml.key?("kind") && yaml.fetch("kind") == "csr_sw_write_expr"
 

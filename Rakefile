@@ -75,6 +75,13 @@ namespace :chore do
     Rake::Task["chore:udb_gen:update_deps"].invoke
   end
 
+  desc "Re-generate sorbet types for gems"
+  task :tapioca do
+    Rake::Task["chore:idlc:tapioca"].invoke
+    Rake::Task["chore:udb:tapioca"].invoke
+    Rake::Task["chore:udb_gen:tapioca"].invoke
+  end
+
   desc "Update golden instruction appendix"
   task :update_golden_appendix do
     Rake::Task["gen:instruction_appendix_adoc"].invoke
