@@ -23,8 +23,8 @@ echo
 echo "Test 3: Available configurations"
 echo "--------------------------------"
 ls -1 ../../cfgs/*.yaml | xargs -n1 basename | sed 's/.yaml$//' | while read cfg; do
-    if [ -d "../../gen/arch/$cfg" ]; then
-        echo "  ✓ $cfg (generated)"
+    if [ -d "../../gen/resolved_spec/$cfg" ]; then
+        echo "  ✓ $cfg (gen/resolved_spec)"
     else
         echo "  ✗ $cfg (not generated)"
     fi
@@ -34,10 +34,12 @@ echo
 # Test 4: Check directory structure
 echo "Test 4: Directory structure for rv64"
 echo "------------------------------------"
-if [ -d "../../gen/arch/rv64" ]; then
-    echo "gen/arch/rv64/"
-    ls -1 ../../gen/arch/rv64/ | while read dir; do
-        count=$(find ../../gen/arch/rv64/$dir -name "*.yaml" 2>/dev/null | wc -l)
+ROOT_DIR="../../gen/resolved_spec/rv64"
+ROOT_LABEL="gen/resolved_spec/rv64/"
+if [ -d "$ROOT_DIR" ]; then
+    echo "$ROOT_LABEL"
+    ls -1 "$ROOT_DIR"/ | while read dir; do
+        count=$(find "$ROOT_DIR"/"$dir" -name "*.yaml" 2>/dev/null | wc -l)
         echo "  ├── $dir/ ($count YAML files)"
     done
 else

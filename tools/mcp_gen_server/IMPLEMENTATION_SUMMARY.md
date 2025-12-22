@@ -17,10 +17,10 @@ The MCP server now supports **CPU-specific ISA data access** (Option 1: Pre-gene
    - Default: `rv64`
 
 2. **Automatic Scope Limiting**
-   - All searches now scoped to `gen/arch/{CPU_CONFIG}/`
-   - Instructions: `gen/arch/{CPU_CONFIG}/inst/`
-   - CSRs: `gen/arch/{CPU_CONFIG}/csr/`
-   - Extensions: `gen/arch/{CPU_CONFIG}/ext/`
+   - All searches now scoped to `gen/resolved_spec/{CPU_CONFIG}/`
+   - Instructions: `gen/resolved_spec/{CPU_CONFIG}/inst/`
+   - CSRs: `gen/resolved_spec/{CPU_CONFIG}/csr/`
+   - Extensions: `gen/resolved_spec/{CPU_CONFIG}/ext/`
 
 3. **Graceful Fallback**
    - Uses pre-generated configs if available
@@ -68,7 +68,7 @@ RISCV_CPU_CONFIG=qc_iu python3 tools/mcp_gen_server/server.py
 ```bash
 cd /home/afonso/riscv-unified-db
 bundle install  # If not already done
-bundle exec rake gen:arch
+bundle exec rake gen:resolved_arch CFG=<config>
 ```
 
 ## Test Results
@@ -82,7 +82,7 @@ bundle exec rake gen:arch
 
 ⚠️ **Known Limitation:**
 - Automatic generation requires Ruby bundler dependencies
-- Workaround: Pre-generate configs using `bundle exec rake gen:arch`
+- Workaround: Pre-generate configs using `bundle exec rake gen:resolved_arch CFG=<config>`
 
 ## Impact on LLM Deterministic Access
 
@@ -139,7 +139,7 @@ Can be generated:
 │             │                            │
 │             ▼                            │
 │  ┌──────────────────────────────────┐   │
-│  │ Check gen/arch/{CONFIG}/ exists  │   │
+│  │ Check gen/resolved_spec/{CONFIG}/ exists  │   │
 │  └──────────┬───────────────────────┘   │
 │             │                            │
 │      ┌──────┴──────┐                    │

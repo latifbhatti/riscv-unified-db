@@ -23,7 +23,23 @@ GEN_DIR = REPO_ROOT / "gen"
 # CPU Configuration
 CPU_CONFIG = os.environ.get("RISCV_CPU_CONFIG", "rv64")
 FORCE_REGEN = os.environ.get("FORCE_REGEN", "").lower() in ("1", "true", "yes")
-CONFIG_GEN_DIR = GEN_DIR / "arch" / CPU_CONFIG
+DEBUG = os.environ.get("MCP_DEBUG", "").lower() in ("1", "true", "yes")
+DISABLE_CACHE = os.environ.get("MCP_DISABLE_CACHE", "").lower() in (
+    "1",
+    "true",
+    "yes",
+)
+
+_YAML_CACHE: Dict[Path, tuple[float, Dict[str, Any]]] = {}
+_PATH_CACHE: Dict[str, List[Path]] = {}
+
+
+def _debug(msg: str) -> None:
+    if DEBUG:
+        print(msg, file=sys.stderr)
+
+
+CONFIG_GEN_DIR = GEN_DIR / "resolved_spec" / CPU_CONFIG
 
 
 def generate_cpu_config(config_name: str, force: bool = False) -> bool:
@@ -33,7 +49,7 @@ def generate_cpu_config(config_name: str, force: bool = False) -> bool:
     Returns:
         True if successful or already exists, False on error
     """
-    gen_dir = GEN_DIR / "arch" / config_name
+    gen_dir = GEN_DIR / "resolved_spec" / config_name
 
     # Check if already generated
     if gen_dir.exists() and not force:
@@ -49,14 +65,15 @@ def generate_cpu_config(config_name: str, force: bool = False) -> bool:
     try:
         print(f"Generating ISA data for config '{config_name}'...", file=sys.stderr)
 
-        # Use a Ruby script that properly loads the environment
-        script_path = REPO_ROOT / "tools/mcp_gen_server/gen_config.rb"
+        env = os.environ.copy()
+        env["CFG"] = config_name
 
         result = subprocess.run(
-            ["bundle", "exec", "ruby", str(script_path), config_name],
+            ["bundle", "exec", "rake", "gen:resolved_arch"],
             cwd=REPO_ROOT,
             capture_output=True,
             text=True,
+            env=env,
             timeout=300,  # 5 minute timeout
         )
 
@@ -64,6 +81,13 @@ def generate_cpu_config(config_name: str, force: bool = False) -> bool:
             print(f"ERROR: Ruby generation failed", file=sys.stderr)
             print(f"STDOUT: {result.stdout}", file=sys.stderr)
             print(f"STDERR: {result.stderr}", file=sys.stderr)
+            return False
+
+        if not gen_dir.exists():
+            print(
+                f"ERROR: Expected generated data missing at {gen_dir}",
+                file=sys.stderr,
+            )
             return False
 
         print(f"Success: {result.stdout.strip()}", file=sys.stderr)
@@ -75,6 +99,53 @@ def generate_cpu_config(config_name: str, force: bool = False) -> bool:
     except Exception as e:
         print(f"ERROR: {e}", file=sys.stderr)
         return False
+
+
+def _cache_stats() -> Dict[str, Any]:
+    return {
+        "enabled": not DISABLE_CACHE,
+        "yaml_entries": len(_YAML_CACHE),
+        "path_entries": len(_PATH_CACHE),
+    }
+
+
+def _find_config_path(config_name: str) -> str | None:
+    cfg_dir = REPO_ROOT / "cfgs"
+    for ext in (".yaml", ".yml"):
+        cand = cfg_dir / f"{config_name}{ext}"
+        if cand.exists():
+            return str(cand.relative_to(REPO_ROOT))
+    return None
+
+
+def _list_config_entries() -> list[dict[str, Any]]:
+    entries: dict[str, dict[str, Any]] = {}
+    cfg_dir = REPO_ROOT / "cfgs"
+    if cfg_dir.exists():
+        for pat in ("*.yaml", "*.yml"):
+            for p in cfg_dir.glob(pat):
+                name = p.stem
+                entry = entries.setdefault(name, {"name": name})
+                entry["config_path"] = str(p.relative_to(REPO_ROOT))
+    root_dir = GEN_DIR / "resolved_spec"
+    if root_dir.exists():
+        for p in root_dir.iterdir():
+            if not p.is_dir():
+                continue
+            name = p.name
+            entry = entries.setdefault(name, {"name": name})
+            entry.setdefault("data_dirs", [])
+            entry["data_dirs"].append(str(p.relative_to(REPO_ROOT)))
+    for entry in entries.values():
+        entry.setdefault("config_path", None)
+        data_dirs = entry.get("data_dirs", [])
+        entry["gen_dir"] = data_dirs[0] if data_dirs else None
+        entry["data_root"] = "resolved_spec" if data_dirs else None
+        entry["generated"] = bool(data_dirs)
+        entry.setdefault("data_dirs", [])
+        entry["active"] = entry["name"] == CPU_CONFIG
+        entry["default"] = entry["name"] == "rv64"
+    return sorted(entries.values(), key=lambda x: x["name"])
 
 
 def _ensure_in_gen(path: Path) -> Path:
@@ -89,17 +160,48 @@ def _ensure_in_gen(path: Path) -> Path:
     return p
 
 
-async def list_gen_yaml():
-    if not CONFIG_GEN_DIR.exists():
-        return [TextContent(type="text", text="[]")]
-    paths: List[str] = []
-    for root, _dirs, files in os.walk(CONFIG_GEN_DIR):
+def _iter_yaml_paths(root: Path) -> List[Path]:
+    if not root.exists():
+        return []
+    key = str(root.resolve())
+    if not DISABLE_CACHE and key in _PATH_CACHE:
+        return _PATH_CACHE[key]
+    paths: List[Path] = []
+    for walk_root, _dirs, files in os.walk(root):
         for f in files:
             if f.lower().endswith((".yaml", ".yml")):
-                full = Path(root) / f
-                rel = str(full.relative_to(REPO_ROOT))
-                paths.append(rel)
-    paths.sort()
+                paths.append(Path(walk_root) / f)
+    paths.sort(key=lambda p: str(p))
+    if not DISABLE_CACHE:
+        _PATH_CACHE[key] = paths
+    return paths
+
+
+async def list_gen_yaml(args: Dict[str, Any] | None = None):
+    args = args or {}
+    subdir = args.get("subdir")
+    limit = args.get("limit")
+
+    root = CONFIG_GEN_DIR
+    if subdir is not None:
+        if not isinstance(subdir, str):
+            raise ValueError("'subdir' must be a string")
+        sub_path = Path(subdir)
+        if sub_path.is_absolute() or ".." in sub_path.parts:
+            raise ValueError("'subdir' must be a relative path under the config dir")
+        root = (CONFIG_GEN_DIR / sub_path).resolve()
+        if not str(root).startswith(str(CONFIG_GEN_DIR.resolve())):
+            raise ValueError("'subdir' must be within the config dir")
+
+    paths = [str(p.relative_to(REPO_ROOT)) for p in _iter_yaml_paths(root)]
+    if limit is not None:
+        try:
+            limit = int(limit)
+        except (TypeError, ValueError):
+            raise ValueError("'limit' must be an integer")
+        if limit < 1:
+            raise ValueError("'limit' must be >= 1")
+        paths = paths[:limit]
     return [TextContent(type="text", text=json.dumps(paths))]
 
 
@@ -108,48 +210,57 @@ async def read_gen_yaml(args: Dict[str, Any]):
     if not isinstance(rel, str):
         raise ValueError("'path' arg must be a string")
     p = _ensure_in_gen(Path(rel))
-    with open(p, encoding="utf-8") as fh:
-        data = yaml.safe_load(fh)
+    data = _load_yaml(p)
     return [TextContent(type="text", text=json.dumps(data, ensure_ascii=False))]
 
 
+async def list_configs(_: Dict[str, Any] | None = None):
+    return {"configs": _list_config_entries()}
+
+
+async def get_config(_: Dict[str, Any] | None = None):
+    data_root = "resolved_spec"
+    return {
+        "config": CPU_CONFIG,
+        "config_path": _find_config_path(CPU_CONFIG),
+        "gen_dir": str(CONFIG_GEN_DIR.relative_to(REPO_ROOT)),
+        "data_root": data_root,
+        "generated": CONFIG_GEN_DIR.exists(),
+        "force_regen": FORCE_REGEN,
+        "cache": _cache_stats(),
+    }
+
+
+async def server_stats(_: Dict[str, Any] | None = None):
+    data_root = "resolved_spec"
+    return {
+        "config": CPU_CONFIG,
+        "gen_dir": str(CONFIG_GEN_DIR.relative_to(REPO_ROOT)),
+        "data_root": data_root,
+        "generated": CONFIG_GEN_DIR.exists(),
+        "counts": {
+            "yaml": len(_iter_yaml_paths(CONFIG_GEN_DIR)),
+            "instructions": len(_iter_instruction_yaml_paths()),
+            "csrs": len(_iter_csr_yaml_paths()),
+            "extensions": len(_iter_extension_yaml_paths()),
+        },
+        "cache": _cache_stats(),
+    }
+
+
 def _iter_instruction_yaml_paths() -> List[Path]:
-    paths: List[Path] = []
     inst_dir = CONFIG_GEN_DIR / "inst"
-    if not inst_dir.exists():
-        return paths
-    for root, _dirs, files in os.walk(inst_dir):
-        root_p = Path(root)
-        for f in files:
-            if f.lower().endswith((".yaml", ".yml")):
-                paths.append(root_p / f)
-    return paths
+    return _iter_yaml_paths(inst_dir)
 
 
 def _iter_csr_yaml_paths() -> List[Path]:
-    paths: List[Path] = []
     csr_dir = CONFIG_GEN_DIR / "csr"
-    if not csr_dir.exists():
-        return paths
-    for root, _dirs, files in os.walk(csr_dir):
-        root_p = Path(root)
-        for f in files:
-            if f.lower().endswith((".yaml", ".yml")):
-                paths.append(root_p / f)
-    return paths
+    return _iter_yaml_paths(csr_dir)
 
 
 def _iter_extension_yaml_paths() -> List[Path]:
-    paths: List[Path] = []
     ext_dir = CONFIG_GEN_DIR / "ext"
-    if not ext_dir.exists():
-        return paths
-    for root, _dirs, files in os.walk(ext_dir):
-        root_p = Path(root)
-        for f in files:
-            if f.lower().endswith((".yaml", ".yml")):
-                paths.append(root_p / f)
-    return paths
+    return _iter_yaml_paths(ext_dir)
 
 
 def _extract_defined_by(data: dict) -> List[str]:
@@ -205,8 +316,7 @@ async def search_instructions(args: Dict[str, Any]):
                 continue
 
         try:
-            with open(p, encoding="utf-8") as fh:
-                data = yaml.safe_load(fh) or {}
+            data = _load_yaml(p)
         except Exception:
             continue
 
@@ -368,8 +478,7 @@ async def find_function_usages(args: Dict[str, Any]):
     # scan instruction YAMLs
     for p in _iter_instruction_yaml_paths():
         try:
-            with open(p, encoding="utf-8") as fh:
-                data = yaml.safe_load(fh) or {}
+            data = _load_yaml(p)
         except Exception:
             continue
         for key in ("operation()", "sail()"):
@@ -437,8 +546,7 @@ async def search_csrs(args: Dict[str, Any]):
             if term.lower() not in p.stem.lower() and term.lower() not in rel.lower():
                 continue
         try:
-            with open(p, encoding="utf-8") as fh:
-                data = yaml.safe_load(fh) or {}
+            data = _load_yaml(p)
         except Exception:
             continue
         if keys and not all(k in data for k in keys):
@@ -466,8 +574,25 @@ async def search_csrs(args: Dict[str, Any]):
 
 
 def _load_yaml(path: Path) -> dict:
-    with open(path, encoding="utf-8") as fh:
-        return yaml.safe_load(fh) or {}
+    mtime: float | None = None
+    if not DISABLE_CACHE:
+        try:
+            mtime = path.stat().st_mtime
+        except FileNotFoundError:
+            _YAML_CACHE.pop(path, None)
+            raise
+        cached = _YAML_CACHE.get(path)
+        if cached and cached[0] == mtime:
+            return cached[1]
+    try:
+        with open(path, encoding="utf-8") as fh:
+            data = yaml.safe_load(fh) or {}
+    except Exception as exc:
+        _debug(f"YAML load failed for {path}: {exc}")
+        raise
+    if not DISABLE_CACHE and mtime is not None:
+        _YAML_CACHE[path] = (mtime, data)
+    return data
 
 
 async def list_extensions(_: Dict[str, Any] | None = None):
@@ -491,7 +616,8 @@ async def list_extensions(_: Dict[str, Any] | None = None):
         n = it["name"]
         if n not in by_name or len(it["path"]) < len(by_name[n]["path"]):
             by_name[n] = it
-    return {"extensions": sorted(by_name.values(), key=lambda x: x["name"])}
+    extensions = sorted(by_name.values(), key=lambda x: x["name"])
+    return {"count": len(extensions), "extensions": extensions}
 
 
 async def read_extension(args: Dict[str, Any]):
@@ -589,12 +715,12 @@ async def main() -> None:
             print(f"Workaround: Pre-generate using rake:", file=sys.stderr)
             print(f"  cd {REPO_ROOT}", file=sys.stderr)
             print(f"  bundle install", file=sys.stderr)
-            print(f"  bundle exec rake gen:arch", file=sys.stderr)
+            print(f"  bundle exec rake gen:resolved_arch CFG={CPU_CONFIG}", file=sys.stderr)
             print(f"", file=sys.stderr)
             print(f"Available pre-generated configs:", file=sys.stderr)
-            arch_dir = GEN_DIR / "arch"
-            if arch_dir.exists():
-                for cfg in sorted(arch_dir.iterdir()):
+            root_dir = GEN_DIR / "resolved_spec"
+            if root_dir.exists():
+                for cfg in sorted(root_dir.iterdir()):
                     if cfg.is_dir():
                         print(f"  ✓ {cfg.name}", file=sys.stderr)
             sys.exit(1)
@@ -608,10 +734,22 @@ async def main() -> None:
         return [
             Tool(
                 name="list_gen_yaml",
-                description="List all YAML files under gen/ as repo-relative paths",
+                description=(
+                    "List YAML files under gen/resolved_spec/<config>/ as repo-relative paths"
+                ),
                 inputSchema={
                     "type": "object",
-                    "properties": {},
+                    "properties": {
+                        "subdir": {
+                            "type": "string",
+                            "description": "optional subdir under config (e.g. inst/, csr/, ext/)",
+                        },
+                        "limit": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 5000,
+                        },
+                    },
                 },
             ),
             Tool(
@@ -627,6 +765,21 @@ async def main() -> None:
                     },
                     "required": ["path"],
                 },
+            ),
+            Tool(
+                name="list_configs",
+                description="List available CPU configs and whether data is generated",
+                inputSchema={"type": "object", "properties": {}},
+            ),
+            Tool(
+                name="get_config",
+                description="Return active CPU config and cache status",
+                inputSchema={"type": "object", "properties": {}},
+            ),
+            Tool(
+                name="server_stats",
+                description="Return counts for the active config and cache stats",
+                inputSchema={"type": "object", "properties": {}},
             ),
             Tool(
                 name="search_instructions",
@@ -749,9 +902,15 @@ async def main() -> None:
     async def _call_tool(name: str, arguments: Dict[str, Any] | None):
         args = arguments or {}
         if name == "list_gen_yaml":
-            return await list_gen_yaml()
+            return await list_gen_yaml(args)
         if name == "read_gen_yaml":
             return await read_gen_yaml(args)
+        if name == "list_configs":
+            return await list_configs(args)
+        if name == "get_config":
+            return await get_config(args)
+        if name == "server_stats":
+            return await server_stats(args)
         if name == "search_instructions":
             return await search_instructions(args)
         if name == "list_functions":

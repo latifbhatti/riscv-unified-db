@@ -15,6 +15,7 @@ Rake.application.options.thread_pool_size = $jobs
 puts "Running with #{Rake.application.options.thread_pool_size} job(s)"
 
 require "etc"
+require "shellwords"
 
 $root = Pathname.new(__dir__).realpath
 $lib = $root / "lib"
@@ -96,6 +97,46 @@ namespace :gen do
       cfg = "_"
     end
     $resolver.cfg_arch_for(cfg)
+  end
+end
+
+namespace :mcp do
+  desc "Start the MCP server (config from RISCV_CPU_CONFIG or argument)"
+  task :server, [:config] do |_t, args|
+    config = args[:config] || ENV["RISCV_CPU_CONFIG"] || "rv64"
+    python = "#{$root}/.home/.venv/bin/python3"
+    env = {
+      "RISCV_CPU_CONFIG" => config,
+    }
+    %w[FORCE_REGEN MCP_DISABLE_CACHE MCP_DEBUG].each do |key|
+      env[key] = ENV[key] if ENV[key]
+    end
+    env_prefix = env.map { |k, v| "#{k}=#{Shellwords.escape(v.to_s)}" }.join(" ")
+    cmd = "#{python} #{$root}/tools/mcp_gen_server/server.py"
+    cmd = "#{env_prefix} #{cmd}" unless env_prefix.empty?
+    sh cmd
+  end
+
+  desc "Run the MCP client demo (config from RISCV_CPU_CONFIG or argument)"
+  task :client_demo, [:config] do |_t, args|
+    config = args[:config] || ENV["RISCV_CPU_CONFIG"] || "rv64"
+    python = "#{$root}/.home/.venv/bin/python3"
+    env = {
+      "RISCV_CPU_CONFIG" => config,
+    }
+    %w[MCP_DISABLE_CACHE MCP_DEBUG].each do |key|
+      env[key] = ENV[key] if ENV[key]
+    end
+    env_prefix = env.map { |k, v| "#{k}=#{Shellwords.escape(v.to_s)}" }.join(" ")
+    cmd = "#{python} #{$root}/tools/mcp_gen_server/client_demo.py"
+    cmd = "#{env_prefix} #{cmd}" unless env_prefix.empty?
+    sh cmd
+  end
+
+  desc "Run the MCP test client (spawns multiple server configs)"
+  task :test_client do
+    python = "#{$root}/.home/.venv/bin/python3"
+    sh "#{python} #{$root}/tools/mcp_gen_server/test_mcp_client.py"
   end
 end
 

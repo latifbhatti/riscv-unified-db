@@ -7,6 +7,8 @@ Copyright (c) 2025 RISC-V International
 
 The MCP server now supports generating and serving ISA data for specific CPU configurations.
 
+Resolved config data lives under `gen/resolved_spec/<config>/` in this repo.
+
 ## Usage
 
 ### Default Configuration (RV64)
@@ -61,21 +63,20 @@ Configurations are defined in `cfgs/*.yaml`. Currently available:
 When the MCP server starts:
 
 1. Reads `RISCV_CPU_CONFIG` environment variable (defaults to `rv64`)
-2. Checks if `gen/arch/{CPU_CONFIG}/` exists
-3. If not, or if `FORCE_REGEN=1`, runs Ruby code:
-   ```ruby
-   require 'udb/resolver'
-   resolver = Udb::Resolver.new(REPO_ROOT)
-   cfg_arch = resolver.cfg_arch_for(CPU_CONFIG)
+2. Checks if `gen/resolved_spec/{CPU_CONFIG}/` exists
+3. If not, or if `FORCE_REGEN=1`, runs:
+   ```bash
+   bundle exec rake gen:resolved_arch CFG=<config>
    ```
-4. This generates resolved ISA data in `gen/arch/{CPU_CONFIG}/`
+   This task calls the Ruby `Udb::Resolver` to resolve the config.
+4. This generates resolved ISA data in `gen/resolved_spec/{CPU_CONFIG}/`
 
 ### 2. Data Structure
 
 Generated data is organized as:
 
 ```
-gen/arch/{CPU_CONFIG}/
+gen/resolved_spec/{CPU_CONFIG}/
 ├── inst/          # Instructions for this configuration
 │   ├── I/         # Base Integer extension instructions
 │   ├── M/         # Multiply/Divide
@@ -95,9 +96,9 @@ gen/arch/{CPU_CONFIG}/
 
 All MCP tool queries are automatically scoped to the selected configuration:
 
-- `search_instructions` → searches only `gen/arch/{CPU_CONFIG}/inst/`
-- `search_csrs` → searches only `gen/arch/{CPU_CONFIG}/csr/`
-- `list_extensions` → lists only `gen/arch/{CPU_CONFIG}/ext/`
+- `search_instructions` → searches only `gen/resolved_spec/{CPU_CONFIG}/inst/`
+- `search_csrs` → searches only `gen/resolved_spec/{CPU_CONFIG}/csr/`
+- `list_extensions` → lists only `gen/resolved_spec/{CPU_CONFIG}/ext/`
 
 ## Configuration Files
 

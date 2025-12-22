@@ -31,7 +31,7 @@ begin
   cfg_arch = resolver.cfg_arch_for(config_name)
 
   puts "Successfully generated: #{cfg_arch.name}"
-  puts "Location: #{repo_root}/gen/arch/#{config_name}/"
+  puts "Location: #{repo_root}/gen/resolved_spec/#{config_name}/"
 rescue LoadError => e
   STDERR.puts "ERROR: Failed to load UDB library"
   STDERR.puts "#{e.message}"
