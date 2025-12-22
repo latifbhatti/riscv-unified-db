@@ -5,10 +5,10 @@
 
 $schema: inst_operand_schema-0.9.0.json#
 kind: instruction_operand
-name: qc.simm5-n0
+name: qc.c.xdp-rw
 
-location: 24-20
-varName: imm
-displayName: imm ≠ 0
-not: 0
-type: { $ref: inst_operand_type/simm.yaml# }
+location: 4-2
+varName: xd
+displayName: xd′
+left_shift: 2
+type: { $ref: inst_operand_type/x_src_and_dst_reg.yaml# }

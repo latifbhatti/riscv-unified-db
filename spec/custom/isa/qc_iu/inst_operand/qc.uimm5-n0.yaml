@@ -9,6 +9,6 @@ name: qc.uimm5-n0
 
 location: 24-20
 varName: imm
-displayName: imm
+displayName: imm ≠ 0
 not: 0
 type: { $ref: inst_operand_type/uimm.yaml# }

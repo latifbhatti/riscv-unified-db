@@ -9,6 +9,6 @@ name: qc.c.shamt5-n0
 
 location: 6-2
 varName: shamt
-displayName: shamt
+displayName: shamt ≠ 0
 not: 0
 type: { $ref: inst_operand_type/uimm.yaml# }

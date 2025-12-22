@@ -24,7 +24,8 @@
         "register_reference",
         "register_reference_list",
         "immediate",
-        "shift_amount"
+        "shift_amount",
+        "interrupt"
       ]
     },
     "$source": { "type": "string" },

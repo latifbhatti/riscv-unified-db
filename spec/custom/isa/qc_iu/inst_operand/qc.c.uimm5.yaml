@@ -5,10 +5,9 @@
 
 $schema: inst_operand_schema-0.9.0.json#
 kind: instruction_operand
-name: qc.simm5-n0
+name: qc.c.uimm5
 
-location: 24-20
-varName: imm
-displayName: imm ≠ 0
-not: 0
-type: { $ref: inst_operand_type/simm.yaml# }
+location: 5|12-10|6
+varName: uimm
+displayName: uimm
+type: { $ref: inst_operand_type/uimm.yaml# }
