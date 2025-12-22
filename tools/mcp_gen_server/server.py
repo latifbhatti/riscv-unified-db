@@ -715,7 +715,10 @@ async def main() -> None:
             print(f"Workaround: Pre-generate using rake:", file=sys.stderr)
             print(f"  cd {REPO_ROOT}", file=sys.stderr)
             print(f"  bundle install", file=sys.stderr)
-            print(f"  bundle exec rake gen:resolved_arch CFG={CPU_CONFIG}", file=sys.stderr)
+            print(
+                f"  bundle exec rake gen:resolved_arch CFG={CPU_CONFIG}",
+                file=sys.stderr,
+            )
             print(f"", file=sys.stderr)
             print(f"Available pre-generated configs:", file=sys.stderr)
             root_dir = GEN_DIR / "resolved_spec"

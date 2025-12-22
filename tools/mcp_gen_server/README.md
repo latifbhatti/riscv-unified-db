@@ -1,3 +1,8 @@
+<!--
+SPDX-License-Identifier: BSD-3-Clause-Clear
+Copyright (c) 2025 RISC-V International
+-->
+
 Minimal MCP server for reading generated YAML under
 `gen/resolved_spec/<config>/` and searching ISA data.
 

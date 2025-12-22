@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: BSD-3-Clause-Clear
+# Copyright (c) 2025 RISC-V International
+
 import asyncio
 import sys
 from mcp.client.stdio import stdio_client, StdioServerParameters
@@ -7,7 +10,9 @@ from mcp.client.session import ClientSession
 
 async def main():
     # Use the current Python interpreter to spawn the server (works in venvs)
-    params = StdioServerParameters(command=sys.executable, args=["tools/mcp_gen_server/server.py"])
+    params = StdioServerParameters(
+        command=sys.executable, args=["tools/mcp_gen_server/server.py"]
+    )
 
     async with stdio_client(params) as (read_stream, write_stream):
         async with ClientSession(read_stream, write_stream) as session:
