@@ -5,10 +5,10 @@
 
 $schema: inst_operand_schema-0.9.0.json#
 kind: instruction_operand
-name: qc.xs2-n0
+name: qc.c.shamt5-n0
 
-location: 24-20
-varName: xs2
-displayName: xs2 ≠ 0
+location: 6-2
+varName: shamt
+displayName: shamt
 not: 0
-type: { $ref: inst_operand_type/x_src_reg.yaml# }
+type: { $ref: inst_operand_type/uimm.yaml# }

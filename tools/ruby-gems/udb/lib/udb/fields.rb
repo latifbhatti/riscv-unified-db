@@ -85,6 +85,8 @@ module Udb
       else
         T.absurd(loc)
       end
+
+      @fields.sort! { |a, b| a.range.max <=> b.range.max }
     end
 
     sig { returns(T::Boolean) }

@@ -5,9 +5,10 @@
 
 $schema: inst_operand_schema-0.9.0.json#
 kind: instruction_operand
-name: i-offset
+name: xdp-xs1p
 
-location: 31-20
-varName: offset
-displayName: offset
-type: { $ref: inst_operand_type/simm.yaml# }
+location: 9-7
+varName: xd_xs1
+displayName: xd1′/xs1′
+left_shift: 2
+type: { $ref: inst_operand_type/x_src_reg.yaml# }

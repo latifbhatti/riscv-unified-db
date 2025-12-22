@@ -9,14 +9,25 @@ require "sorbet-runtime"
 require_relative "database_obj"
 require_relative "../fields"
 
+module Idl
+  class AstNode
+    def replace_var(from, to)
+      if self.is_a?(Idl::IdAst) && @name == from
+        @name = to
+      end
+      @children.each { |child| child.replace_var(from, to) }
+    end
+  end
+end
+
 module Udb
 
-  class InstructionOperandType; end
+  class InstructionOperandType < TopLevelDatabaseObject; end
   class InstructionOperand < TopLevelDatabaseObject
 
     sig { returns(InstructionOperandType) }
     def type
-      @cfg_arch.ref(@data.fetch("type").fetch("$ref"))
+      @type ||= @cfg_arch.ref(@data.fetch("type").fetch("$ref"))
     end
 
     # a contiguous "piece" of the operand within the encoding
@@ -29,13 +40,22 @@ module Udb
         @operand = operand
       end
 
-      sig { params(parent: Instruction).returns(String) }
-      def pretty_name(parent)
+      sig { returns(String) }
+      def pretty_name
         if @range.size == @operand.size_in_encoding
-          @operand.pretty_name(parent)
+          @operand.pretty_name
         else
-          idx_str = @operand.encoding_range_to_operand_range(parent.encoding_width, @range)
-          "#{@operand.pretty_name(parent)}[#{idx_str}]"
+          idx_str = @operand.encoding_range_to_operand_range(@operand.size_in_encoding, @range)
+          "#{@operand.pretty_name}[#{idx_str}]"
+        end
+      end
+
+      def var_name
+        if @range.size == @operand.size_in_encoding
+          @operand.var_name
+        else
+          idx_str = @operand.encoding_range_to_operand_range(@operand.size_in_encoding, @range)
+          "#{@operand.var_name}[#{idx_str}]"
         end
       end
 
@@ -113,6 +133,11 @@ module Udb
       end
     end
 
+    sig { returns(Integer) }
+    def left_shift
+      @data.key?("left_shift") ? @data.fetch("left_shift") : 0
+    end
+
     # @return Specific values that are prohibited for this operand
     sig { returns(T::Array[Integer]) }
     def excludes
@@ -173,6 +198,52 @@ module Udb
       end
     end
 
+    # returns bits of the encoding that make up the field, as an array
+    #   Each item of the array is either:
+    #     - A number, to represent a single bit
+    #     - A range, to represent a continugous range of bits
+    #
+    #  The array is ordered from encoding MSB (at index 0) to LSB (at index n-1)
+    sig { returns(T::Array[T.any(Integer, T::Range[Integer])]) }
+    def bits
+      location.fields.map do |ef|
+        ef.range.size == 1 ? ef.range.first : ef.range
+      end
+    end
+
+    # return IDL code to extract the operand from $encoding
+    sig { returns(String) }
+    def decode_idl
+      ops = []
+      so_far = 0
+      bits.each do |b|
+        if b.is_a?(Integer)
+          op = "$encoding[#{b}]"
+          ops << op
+          so_far += 1
+        elsif b.is_a?(Range)
+          op = "$encoding[#{b.end}:#{b.begin}]"
+          ops << op
+          so_far += T.must(b.size)
+        end
+      end
+      ops << "#{left_shift}'d0" unless left_shift.zero?
+      ops =
+        if ops.size > 1
+          "{#{ops.join(', ')}}"
+        else
+          ops.fetch(0)
+        end
+
+      if transform_ast.nil?
+        ops
+      else
+        ast = T.must(transform_ast).deep_dup
+        ast.replace_var("var", "(#{ops})")
+        ast.to_idl
+      end
+    end
+
     sig { returns(T.nilable(Idl::RvalueAst)) }
     def transform_ast
       return nil unless @data.key?("transform(var)").nil?
@@ -221,9 +292,19 @@ module Udb
     # @example
     #   pretty_name #=> "rd ≠ 0"
     #   pretty_name #=> "rd ≠ {0,2}"
-    sig { params(parent: Instruction).returns(String) }
-    def pretty_name(parent)
+    sig { returns(String) }
+    def pretty_name
       @data.fetch("displayName")
+    end
+
+    sig { returns(String) }
+    def var_name
+      @data.fetch("varName")
+    end
+
+    sig { returns(T::Boolean) }
+    def signed?
+      type.signed?
     end
 
     # return a map, indexed by encoding position, that gives back the operand

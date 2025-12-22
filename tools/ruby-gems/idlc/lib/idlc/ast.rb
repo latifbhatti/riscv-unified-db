@@ -69,12 +69,7 @@ module Idl
 
     # @return [String] The IDL source of this node
     sig { returns(String) }
-    def text_value
-      @text_value ||=
-        unless @input.nil? || @interval.nil?
-          @input[@interval]
-        end
-    end
+    def text_value = @text_value
 
     # @return [AstNode] The parent node
     # @return [nil] if this is the root of the tree
@@ -212,6 +207,10 @@ module Idl
       @input_file = nil
       @starting_line = 0
       @interval = interval
+      @text_value =
+        unless @input.nil? || @interval.nil?
+          @input[@interval]
+        end
       @children = children
       @parent = nil # will be set later unless this is the root
       @children.each { |child| child.instance_variable_set(:@parent, self) }
@@ -440,6 +439,16 @@ module Idl
 
       @children.each { |child| child.freeze_tree(global_symtab) }
       freeze
+    end
+
+    sig { returns(AstNode) }
+    def deep_dup
+      ast = dup
+      ast.instance_variable_set(:@children, [])
+      @children.each do |child|
+        ast.instance_variable_get(:@children) << child.deep_dup
+      end
+      ast
     end
 
     # @return [String] A string representing the path to this node in the tree

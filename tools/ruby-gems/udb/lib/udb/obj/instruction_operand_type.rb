@@ -26,9 +26,7 @@ module Udb
 
     sig { returns(T::Boolean) }
     def signed?
-      raise "signed is only available on immediate type" unless type == Type::Immediate
-
-      @data.fetch("signed")
+      @data.key?("signed") && @data.fetch("signed") == true
     end
   end
 end

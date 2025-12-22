@@ -4,7 +4,7 @@
   "description": "Schema for instruction opcode definitions",
 
   "type": "object",
-  "required": ["$schema", "kind", "location", "display_name", "value"],
+  "required": ["$schema", "kind", "location", "displayName", "value"],
   "properties": {
     "$schema": {
       "const": "inst_opcode_schema-0.9.0.json#"
@@ -22,7 +22,7 @@
     "value": {
       "$ref": "schema_defs.json#/$defs/integer"
     },
-    "display_name": {
+    "displayName": {
       "type": "string"
     },
     "$parent_of": {

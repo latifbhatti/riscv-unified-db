@@ -8,5 +8,5 @@ kind: instruction_opcode
 name: load
 
 location: 6-0
-display_name: LOAD
+displayName: LOAD
 value: 0b0000011

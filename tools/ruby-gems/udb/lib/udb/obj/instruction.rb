@@ -26,6 +26,7 @@ module Udb
 
     class Format
       extend T::Sig
+      include Helpers::WavedromUtil
 
       attr_reader :inst
 
@@ -44,7 +45,9 @@ module Udb
         end
 
         sig { returns(String) }
-        def display_name = T.cast(@data.fetch("displayName"), String)
+        def display_name
+          T.cast(@data.fetch("displayName"), String)
+        end
 
         sig { returns(Integer) }
         def value
@@ -56,6 +59,7 @@ module Udb
           self
         end
 
+        def opcode? = true
       end
 
       sig { params(data: T::Hash[String, T.untyped], inst: Instruction).void }
@@ -220,6 +224,47 @@ module Udb
 
       end
 
+      # Generates a wavedrom description of the instruction format
+      # @return The wavedrom JSON description
+      sig { returns(T::Hash[String, T.untyped]) }
+      def wavedrom_desc
+        desc = {
+          "reg" => []
+        }
+        display_fields = opcodes
+        display_fields += operands.map(&:grouped_fields).flatten
+
+        display_fields.sort { |a, b| b.range.last <=> a.range.last }.reverse_each do |e|
+          if e.opcode?
+            o = T.cast(e, Opcode)
+            desc["reg"] << {
+              "bits" => o.range.size,
+              "name" => o.value,
+              "type" => 2,
+              "attr" => o.display_name
+            }
+          else
+            o = T.cast(e, InstructionOperand::Field)
+            desc["reg"] << {
+              "bits" => o.range.size,
+              "name" => o.pretty_name,
+              "type" => 4,
+              "attr" => o.var_name
+            }
+          end
+        end
+
+        desc
+      end
+
+      # return the wavedrom description suitable for inclusion in asciidoc
+      sig { returns(String) }
+      def processed_wavedrom_desc
+        data = wavedrom_desc
+        processed_data = process_wavedrom(data)
+        fix_entities(json_dump_with_hex_literals(processed_data))
+      end
+
     end
 
     class ConditionalFormat < T::Struct
@@ -280,7 +325,7 @@ module Udb
       @subtype[base]
     end
 
-    class Opcode < InstructionSubtype::Opcode
+    class Opcode
       extend T::Sig
 
       sig { returns(Integer) }
@@ -538,10 +583,11 @@ module Udb
       if has_format?
         format_for(Condition.new({ "xlen" => effective_xlen }, cfg_arch)).operands.each do |operand|
           qualifiers = [:const]
+          qualifiers << :signed if operand.signed?
           width = operand.size
 
-          var = Idl::Var.new(operand.name, Idl::Type.new(:bits, qualifiers:, width:), decode_var: true)
-          symtab.add(operand.name, var)
+          var = Idl::Var.new(operand.var_name, Idl::Type.new(:bits, qualifiers:, width:), decode_var: true)
+          symtab.add(operand.var_name, var)
         end
       else
         encoding(effective_xlen).decode_variables.each do |d|
@@ -938,6 +984,9 @@ module Udb
       def sext?
         @sext
       end
+
+      # for temporary compatibility with InstructionOperand
+      def signed? = false
 
       sig { params(other: T.any(Instruction::Opcode, DecodeVariable)).returns(T::Boolean) }
       def overlaps?(other)
@@ -1374,7 +1423,25 @@ module Udb
       end
 
       display_fields.sort { |a, b| b.range.last <=> a.range.last }.reverse_each do |e|
-        desc["reg"] << { "bits" => e.range.size, "name" => e.name, "type" => (e.opcode? ? 2 : 4) }
+        if has_format?
+          if e.opcode?
+            desc["reg"] << {
+              "bits" => e.range.size,
+              "name" => e.value,
+              "type" => 2,
+              "attr" => e.display_name
+            }
+          else
+            desc["reg"] << {
+              "bits" => e.range.size,
+              "name" => e.pretty_name,
+              "type" => 4,
+              "attr" => e.var_name
+            }
+          end
+        else
+          desc["reg"] << { "bits" => e.range.size, "name" => e.name, "type" => (e.opcode? ? 2 : 4) }
+        end
       end
 
       desc
@@ -1487,11 +1554,14 @@ module Udb
     sig { returns(T::Array[Profile]) }
     def profiles_mandating_inst
       @profiles_mandating_inst ||=
+        # cfg_arch.profiles.select { |profile| profile.mandatory_instruction?(self) }
         cfg_arch.profiles.select do |profile|
-          profile.mandatory_ext_reqs.any? do |ext_req|
-            defined_by_condition.satisfiability_depends_on_ext_req?(ext_req.ext_req)
-          end
-        end
+          next if profile.mandatory_ext_reqs.none? { |ext_req| defined_by_condition.mentions?(ext_req.ext_req) }
+
+          (profile.mandatory_condition & -defined_by_condition).unsatisfiable?
+        end.compact
+      # puts "#{name}: #{@profiles_mandating_inst.map(&:name)}"
+      # @profiles_mandating_inst
     end
 
     # return a list of profiles in which this instruction is explicitly optional
@@ -1499,10 +1569,15 @@ module Udb
     def profiles_optioning_inst
       @profiles_optioning_inst ||=
         cfg_arch.profiles.select do |profile|
+          next if profiles_mandating_inst.include?(profile)
+
           profile.optional_ext_reqs.any? do |ext_req|
-            defined_by_condition.satisfiability_depends_on_ext_req?(ext_req.ext_req)
+            next unless defined_by_condition.mentions?(ext_req.ext_req)
+            (profile.mandatory_condition & ext_req.to_condition & -defined_by_condition).unsatisfiable?
           end
         end
+      puts "#{name} (optional): #{@profiles_optioning_inst.map(&:name)}"
+      @profiles_optioning_inst
     end
   end
 

@@ -355,6 +355,8 @@ module Idl
           "string"
         elsif @kind == :struct
           "struct #{T.cast(self, StructType).type_name}"
+        elsif @kind == :function
+          "funcall '#{@name}'"
         else
           raise @kind.to_s
         end

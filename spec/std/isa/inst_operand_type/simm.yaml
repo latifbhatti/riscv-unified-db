@@ -5,8 +5,7 @@
 
 $schema: inst_operand_type_schema-0.9.0.json#
 kind: instruction_operand_type
-name: x_src_reg
-displayName: X register index
-type: register_reference
-register_file: X
-access: R
+name: simm
+displayName: Signed immediate
+type: immediate
+signed: true

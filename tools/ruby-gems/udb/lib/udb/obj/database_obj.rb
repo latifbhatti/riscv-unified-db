@@ -25,6 +25,7 @@ module Udb
         InstructionSubtype = new("instruction_subtype")
         InstructionOpcode = new("instruction_opcode")
         InstructionOperand = new("instruction_operand")
+        InstructionOperandType = new("instruction_operand_type")
         Csr = new("csr")
         CsrField = new("csr_field")
         Extension = new("extension")

@@ -8,5 +8,6 @@ kind: instruction_operand
 name: xs1
 
 location: 19-15
+varName: xs1
 displayName: xs1
-type: { "$ref": "inst_operand_type/x_src_reg.yaml#" }
+type: { $ref: inst_operand_type/x_src_reg.yaml# }

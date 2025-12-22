@@ -54,6 +54,7 @@ require_relative "obj/exception_code"
 require_relative "obj/extension"
 require_relative "obj/instruction"
 require_relative "obj/instruction_operand"
+require_relative "obj/instruction_operand_type"
 require_relative "obj/instruction_opcode"
 require_relative "obj/manual"
 require_relative "obj/portfolio"
@@ -118,6 +119,12 @@ module Udb
         arch_dir: "inst_operand",
         klass: InstructionOperand,
         kind: DatabaseObject::Kind::InstructionOperand
+      },
+      {
+        fn_name: "instruction_operand_type",
+        arch_dir: "inst_operand_type",
+        klass: InstructionOperandType,
+        kind: DatabaseObject::Kind::InstructionOperandType
       },
       {
         fn_name: "csr",
@@ -287,12 +294,12 @@ module Udb
         when %r{^inst/.*}
           inst_name = File.basename(file_path, ".yaml")
           instruction(inst_name)
-        when /^manual.*/
-          manual_name = File.basename(file_path, ".yaml")
-          manual(manual_name)
         when /^manual_version.*/
           manual_name = File.basename(file_path, ".yaml")
           manual_version(manual_name)
+        when /^manual.*/
+          manual_name = File.basename(file_path, ".yaml")
+          manual(manual_name)
         when /^profile_family.*/
           profile_family_name = File.basename(file_path, ".yaml")
           profile_family(profile_family_name)
@@ -305,9 +312,12 @@ module Udb
         when %r{^inst_opcode.*}
           inst_opcode_name = File.basename(file_path, ".yaml")
           instruction_opcode(inst_opcode_name)
+        when %r{^inst_operand_type.*}
+          inst_operand_type_name = File.basename(file_path, ".yaml")
+          instruction_operand_type(inst_operand_type_name)
         when %r{^inst_operand.*}
-          inst_opcode_name = File.basename(file_path, ".yaml")
-          instruction_operand(inst_opcode_name)
+          inst_operand_name = File.basename(file_path, ".yaml")
+          instruction_operand(inst_operand_name)
         else
           raise "Unhandled ref object: #{file_path}"
         end

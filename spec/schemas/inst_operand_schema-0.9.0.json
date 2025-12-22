@@ -19,7 +19,15 @@
 
   "type": "object",
   "additionalProperties": false,
-  "required": ["$schema", "kind", "name", "location", "type", "displayName"],
+  "required": [
+    "$schema",
+    "kind",
+    "name",
+    "location",
+    "type",
+    "varName",
+    "displayName"
+  ],
   "properties": {
     "$schema": {
       "const": "inst_operand_schema-0.9.0.json#"
@@ -61,7 +69,12 @@
       ]
     },
     "displayName": {
-      "type": "string"
+      "type": "string",
+      "description": "How the operand is displayed in documentation"
+    },
+    "varName": {
+      "type": "string",
+      "description": "Name of the variable for use in IDL"
     },
     "dissimilar": {
       "$ref": "schema_defs.json#/$defs/field_location",

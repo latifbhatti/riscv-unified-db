@@ -8,5 +8,5 @@ kind: instruction_opcode
 name: op
 
 location: 6-0
-display_name: OP
+displayName: OP
 value: 0b0110011

@@ -4,8 +4,9 @@
 # yaml-language-server: $schema=../../../schemas/inst_operand_type_schema-0.9.0.json
 
 $schema: inst_operand_type_schema-0.9.0.json#
-kind: instruction operand type
+kind: instruction_operand_type
 name: x_dst_reg
+displayName: X register index
 type: register_reference
 register_file: X
 access: W
