@@ -48,40 +48,16 @@ ENV MISE_YES=1
 ENV MISE_TRUSTED_CONFIG_PATHS="/"
 ENV UV_CACHE_DIR="/tmp/uv-cache"
 ENV PATH="/mise/shims:$PATH"
-RUN curl https://mise.run | sh
+
+# renovate: datasource=github-releases depName=jdx/mise
+ARG MISE_VERSION=2026.3.17
+RUN MISE_VERSION=${MISE_VERSION} curl https://mise.run | sh
 
 # Install tools managed by mise (.mise.toml)
 COPY .mise.toml /mise/config.toml
 RUN mise install
 RUN mise reshim
 RUN mkdir -p /mise/state && chmod -R 777 /mise
-
-# build/install eqntott
-RUN git clone --depth=1 https://github.com/TheProjecter/eqntott.git && \
-    cd eqntott && \
-    ./configure && \
-    make && make install && \
-    cd .. && \
-    rm -rf eqntott
-
-# build/install espresso
-RUN git clone --depth=1 https://github.com/psksvp/espresso-ab-1.0.git && \
-    cd espresso-ab-1.0 && \
-    ./configure && \
-    make && make install && \
-    cd .. && \
-    rm -rf espresso-ab-1.0
-
-# build / install must
-# mcsmus/mcsmus/control.cc is missing #include <cstdio>, thus the sed below
-RUN git clone https://github.com/jar-ben/mustool.git && \
-    cd mustool && \
-    git checkout 17fa9f9542a9ce05328dfccd1cd410f05f741ab3 && \
-    sed -i -e 's/#include <signal.h>/#include <signal.h>\n#include <cstdio>/' mcsmus/mcsmus/control.cc && \
-    make -j && \
-    install must -m 0777 /usr/bin/must && \
-    cd .. && \
-    rm -rf mustool
 
 # Sync Python project dependencies with uv
 COPY pyproject.toml uv.lock /opt/python/
